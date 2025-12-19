@@ -44,9 +44,11 @@ add_executable(impcheck_confirm
     src/trusted/siphash.c 
     src/trusted/trusted_parser.c 
     src/trusted/trusted_utils.c 
+    src/trusted/clause_flat.c 
     src/trusted/vectors.c 
     src/writer.c 
-    src/trusted/main_confirm.c)
+    src/trusted/main_confirm.c
+    src/trusted/heap.c)
 
 add_executable(plrat_first_pass 
     src/trusted/trusted_utils.c 
@@ -62,9 +64,11 @@ add_executable(plrat_first_pass
     src/trusted/plrat_utils.c 
     src/trusted/plrat_checker.c 
     src/trusted/plrat_importer.c 
+    src/trusted/clause_flat.c 
     src/trusted/main_plrat_first.c 
     src/trusted/plrat_file_reader.c
-    src/trusted/commutative_sig.c)
+    src/trusted/commutative_sig.c
+    src/trusted/heap.c)
     
 
 add_executable(plrat_reroute
@@ -134,3 +138,33 @@ add_executable(test_full
     test/test.c 
     src/trusted/vectors.c
     test/test_full.c)
+
+add_executable(test_flat_clause 
+    src/trusted/trusted_utils.c 
+    src/trusted/clause_flat.c 
+    test/test.c 
+    test/test_clause_flat.c)
+
+add_executable(test_heap 
+    src/trusted/trusted_utils.c 
+    src/trusted/clause_flat.c 
+    src/trusted/heap.c 
+    test/test.c 
+    test/test_heap.c)
+
+add_executable(test_plrat_importer
+    src/trusted/trusted_utils.c 
+    src/trusted/clause_flat.c 
+    src/trusted/heap.c 
+    src/trusted/plrat_utils.c 
+    src/trusted/commutative_sig.c
+    src/trusted/secret.c
+    src/trusted/plrat_importer.c
+    test/test.c
+    test/test_plrat_importer.c)
+target_compile_definitions(test_plrat_importer PRIVATE UNIT_TEST)
+
+add_executable(plrat_import_to_txt
+    src/trusted/trusted_utils.c
+    src/trusted/clause_flat.c
+    tools/plrat_import_to_txt.c)

@@ -274,6 +274,9 @@ void trusted_utils_write_ul(u64 u, FILE* file) {
 void trusted_utils_write_uls(const u64* data, u64 nb_uls, FILE* file) {
     write_objs(data, sizeof(u64), nb_uls, file);
 }
+void trusted_utils_write_flat_clause(const void* data, size_t clause_size, FILE* file) {
+    write_objs(data, clause_size, 1, file);
+}
 void trusted_utils_write_sig(const u8* sig, FILE* file) {
     write_objs(sig, sizeof(int), 4, file);
 }

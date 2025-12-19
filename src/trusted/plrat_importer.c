@@ -11,108 +11,57 @@
 #include <time.h>      // for clock, CLOCKS_PER_SEC, clock_t
 
 #include "checker_interface.h"
-#include "clause.h"
+//#include "clause.h"
 #include "hash.h"
 #include "plrat_checker.h"  // for trusted_utils_read_int, trusted_utils_log...
 #include "plrat_utils.h"
 #include "secret.h"
 #include "commutative_sig.h"
 #include "top_check.h"  // for top_check_commit_formula_sig, top_check_d...
+#include "heap.h"
 
-// Instantiate clause_vec
-#define TYPE struct clause
-#define TYPED(THING) clause_##THING
-#include "vec.h"
-#undef TYPED
-#undef TYPE
-
-// Instantiate int_vec
-#define TYPE int
-#define TYPED(THING) int_##THING
-#include "vec.h"
-#undef TYPED
-#undef TYPE
+#ifdef UNIT_TEST
+#define unit_static
+#else
+#define unit_static static
+#endif
 
 const char* out_path;  // named pipe
 u64 n_solvers;         // number of solvers
 double root_n;         // square root of number of solvers
-long* written_lits;     // number of lits written to the file
 struct comm_sig** signatures;
 size_t comm_size;
 u64 redist_strat;  // redistribution_strategy
 u64 local_rank;    // solver id
 
 // Buffering.
-struct int_vec** all_lits;
-struct clause_vec** clauses;
-FILE** id_reference_files;
-FILE** lits_array_files;
+struct clause_heap** clause_heaps;
+unsigned long* max_ids;
+FILE** out_files;
+char** file_names;  // to be removed. uses for file shenanigans
 
-void plrat_importer_write_lrat_import_file(u64 clause_id, int* literals, int nb_literals, FILE* current_out) {
-    if (redist_strat == 0) {
-        fprintf(current_out, "%lu ", clause_id);
-        fprintf(current_out, " ");
-        fprintf(current_out, "n:%i", nb_literals);
-        fprintf(current_out, " ");
-        for (int i = 0; i < nb_literals; i++) {
-            fprintf(current_out, "%i ", literals[i]);
-        }
-        fprintf(current_out, "%i", 0);
-        fprintf(current_out, "\n");
-    } else {
-        trusted_utils_write_ul(clause_id, current_out);
-        trusted_utils_write_int(nb_literals, current_out);
-        trusted_utils_write_ints(literals, nb_literals, current_out);
-    }
+#ifdef UNIT_TEST
+FILE* get_plrat_importer_out_file() {
+    return out_files[0];
 }
 
-void plrat_importer_write_int(int value, FILE* current_out) {
-    if (redist_strat == 0) {
-        fprintf(current_out, "%i", value);
-        fprintf(current_out, "\n");
-    } else {
-        trusted_utils_write_int(value, current_out);
-    }
+void set_plrat_importer_out_file(FILE* file) {
+    out_files[0] = file;
 }
 
-void plrat_importer_write_id_ref(struct clause* clause, FILE* current_out) {
-    if (redist_strat == 0) {
-        fprintf(current_out, "%lu %lu %i\n", clause->id, clause->start, clause->nb_lits);
-    } else {
-        // const int last_index = sizeof(u64) - 1; // index of the last byte
-        // char* first_byte = ((char*)&clause->id);
-        // for (char* current_byte = first_byte + last_index; first_byte <= current_byte; --current_byte) { // write with big endian for binary sorting
-        //     trusted_utils_write_char(*current_byte, current_out);
-        // }
-        trusted_utils_write_ul(plrat_swap_endianess(clause->id), current_out);  // write with big endian for binary sorting
-        // trusted_utils_write_ul(clause->id, current_out);
-        trusted_utils_write_ul(clause->start, current_out);
-        trusted_utils_write_int(clause->nb_lits, current_out);
-    }
+void set_plrat_importer_max_id(unsigned long id) {
+    max_ids[0] = id;
 }
+#endif
 
-void plrat_importer_write_ints(int* literals, size_t nb_literals, FILE* current_out) {
-    if (redist_strat == 0) {
-        for (size_t i = 0; i < nb_literals; ++i) {
-            fprintf(current_out, "%i ", literals[i]);
-        }
-    } else {
-        trusted_utils_write_ints(literals, nb_literals, current_out);
-    }
-}
-
-void plrat_importer_write_hash(u8* hash, FILE* current_out) {
+static void plrat_importer_write_hash(u8* hash, FILE* current_out) {
     trusted_utils_write_sig(hash, current_out);
 }
 
-u64 plrat_importer_get_proxy_rank(size_t id) {
+static u64 plrat_importer_get_proxy_rank(size_t id) {
     u64 x = plrat_utils_rank_to_x(id % n_solvers, comm_size);
     u64 y = plrat_utils_rank_to_y(local_rank, comm_size);
     return plrat_utils_2d_to_rank(x, y, comm_size);
-}
-
-FILE* plrat_importer_get_proxy_file(size_t id) {
-    return id_reference_files[plrat_importer_get_proxy_rank(id)];
 }
 
 void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigned long num_solvers, unsigned long redistribution_strategy, unsigned long write_buffer_size) {
@@ -125,16 +74,15 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
     }
     out_path = main_path;
     local_rank = solver_id;
-    written_lits = trusted_utils_calloc(comm_size, sizeof(long));
-    all_lits = trusted_utils_malloc(sizeof(struct int_vec*) * num_solvers);
-    clauses = trusted_utils_malloc(sizeof(struct clause_vec*) * num_solvers);
-    id_reference_files = trusted_utils_malloc(sizeof(FILE*) * comm_size);
-    lits_array_files = trusted_utils_malloc(sizeof(FILE*) * comm_size);
+    clause_heaps = trusted_utils_malloc(sizeof(struct clause_heap*) * num_solvers);
+    max_ids = trusted_utils_calloc(num_solvers, sizeof(unsigned long));
+    out_files = trusted_utils_malloc(sizeof(FILE*) * comm_size);
+    file_names = trusted_utils_malloc(sizeof(char*) * comm_size);
     signatures = trusted_utils_malloc(sizeof(struct comm_sig*) * comm_size);
 
     if (local_rank == 0) {
         char msg[512];
-        snprintf(msg, 512, "comm_size: %ld\n", comm_size);
+        snprintf(msg, 512, "comm_size: %ld", comm_size);
         plrat_utils_log(msg);
     }
 
@@ -160,138 +108,167 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
         }
 
         // plrat_utils_log(ids_path);
-        id_reference_files[i] = fopen(ids_path, "wb");
-        if (!(id_reference_files[i])) printf("id_reference_files not created: %s\n", ids_path);
-        trusted_utils_write_ints((int*)&n_solvers, 0, id_reference_files[i]); // make shure an empty file is created
-        lits_array_files[i] = fopen(clauses_path, "wb");
-        if (!(lits_array_files[i])) printf("lits_array_files not created: %s\n", clauses_path);
-        trusted_utils_write_ints((int*)&n_solvers, 0, lits_array_files[i]); // make shure an empty file is created
-
-        if (i != local_rank) {
-            all_lits[i] = int_vec_init(write_buffer_size / sizeof(int));
-            clauses[i] = clause_vec_init(write_buffer_size / sizeof(struct clause));
-        } else {
-            // Use a small placeholder for less edgecases
-            all_lits[i] = int_vec_init(1);
-            clauses[i] = clause_vec_init(1);
+        out_files[i] = fopen(ids_path, "wb+");
+        if (!(out_files[i])) {
+            char msg[512];
+            snprintf(msg, 512, "out_files not created: %s\n", ids_path);
+            plrat_utils_log_err(msg);
         }
+        trusted_utils_write_ints((int*)&n_solvers, 0, out_files[i]); // make shure an empty file is created
+        file_names[i] = trusted_utils_calloc(1024, sizeof(char));
+        memcpy(file_names[i], ids_path, 1024);
+
+        if (i != local_rank)
+            clause_heaps[i] = heap_init(write_buffer_size / sizeof(void*));
+        else
+            clause_heaps[i] = heap_init(1);     // Use a small placeholder for less edgecases
+
         signatures[i] = comm_sig_init(SECRET_KEY_2);
     }
 }
 
-int compare_clause(const void* a, const void* b) {
-    u64 id_a = ((struct clause*)a)->id;
-    u64 id_b = ((struct clause*)b)->id;
-    return (id_a - id_b);
+unit_static void skip_heap_duplicates(clause_ptr c, struct clause_heap* heap) {
+    if (heap->size <= 0)
+        return;
+    clause_ptr next_c = heap_get_min(heap);
+    while (next_c != NULL && get_clause_id(c) == get_clause_id(next_c)) {
+        if (!compare_flat_clause(c, next_c)) {
+            trusted_utils_log_err("differing clauses with same id detected");
+            // TODO: correctly mark proof as faulty
+            exit(1);
+        }
+        
+        delete_flat_clause(heap_pop_min(heap));
+        if (heap->size <= 0)
+            break;
+        next_c = heap_get_min(heap);
+    }
+}
+
+// flush_ratio \in [0,1] denotes the maximum fill level of the heap after the flush operation
+unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id, float flush_ratio) {
+    if (clause_heap->size <= 0)
+        return;
+    unsigned long* max_id = &(max_ids[file_id]);
+    FILE* out_file = out_files[file_id];
+    clause_ptr c = heap_get_min(clause_heap);
+
+    if (*max_id < get_clause_id(c)) {   // simply appent heap to file
+        while (clause_heap->size > clause_heap->capacity * flush_ratio) {
+            if (clause_heap->size <= 0)
+                break;
+            c = heap_pop_min(clause_heap);
+            skip_heap_duplicates(c, clause_heap);
+
+            // write clause to file and remove from heap
+            write_flat_clause_to_file(c, out_file);
+            comm_sig_update_clause(signatures[file_id],
+                                   get_clause_id(c),
+                                   get_clause_lits(c),
+                                   get_clause_nb_lits(c));
+            *max_id = get_clause_id(c);
+            delete_flat_clause(c);
+        }
+    } else {    // merge file with heap to assure sorted clauses in file 
+        rewind(out_file);
+
+        // TODO: make inplace and remove file name shenanigans
+        char new_file_name[1024];
+        char* filename = file_names[file_id];
+        snprintf(new_file_name, 1024, "%s_tmp", filename);
+        FILE* new_out_file = fopen(new_file_name, "wb+");
+        if (new_out_file == NULL) {
+            char msg[512];
+            snprintf(msg, 512, "could not open file %s\n", new_file_name);
+            trusted_utils_log_err(msg);
+            exit(1);
+        }
+
+        // merge file and heap
+        clause_ptr min_clause, file_clause, heap_clause;
+        file_clause = read_next_flat_clause_from_file(out_file);
+        if (clause_heap->size > (clause_heap->capacity * flush_ratio)) {
+            heap_clause = heap_pop_min(clause_heap);
+            skip_heap_duplicates(heap_clause, clause_heap);
+        }
+        bool add_sig;
+        while (file_clause || clause_heap->size > (clause_heap->capacity * flush_ratio)) {
+            add_sig = false;
+
+            if (!file_clause || (heap_clause && get_clause_id(file_clause) > get_clause_id(heap_clause))) {
+                min_clause = heap_clause;
+                heap_clause = heap_pop_min(clause_heap);
+                skip_heap_duplicates(heap_clause, clause_heap);
+                add_sig = true;
+            } else if (!heap_clause || get_clause_id(file_clause) < get_clause_id(heap_clause)) {
+                min_clause = file_clause;
+                file_clause = read_next_flat_clause_from_file(out_file);
+            } else if (compare_flat_clause(file_clause, heap_clause)) {
+                min_clause = file_clause;
+                file_clause = read_next_flat_clause_from_file(out_file);
+                delete_flat_clause(heap_clause);
+            } else {
+                trusted_utils_log_err("differing clauses with same id detected");
+                exit(1);
+            }
+
+            write_flat_clause_to_file(min_clause, new_out_file);
+            if (add_sig) {
+                comm_sig_update_clause(signatures[file_id],
+                                       get_clause_id(min_clause),
+                                       get_clause_lits(min_clause),
+                                       get_clause_nb_lits(min_clause));
+            }
+            *max_id = get_clause_id(min_clause);
+            delete_flat_clause(min_clause);
+        }
+
+        // write potentially remaining heap clause
+        if (heap_clause)
+            write_flat_clause_to_file(heap_clause, new_out_file);
+            
+        // clean up files
+        fsync(fileno(new_out_file));
+        fclose(out_file);
+        fclose(new_out_file);
+        remove(filename);
+        rename(new_file_name, filename);
+        out_files[file_id] = fopen(filename, "rb+");
+        fseek(out_files[file_id], 0, SEEK_END);
+    }
 }
 
 void plrat_importer_end() {
-    FILE* id_out;
-    FILE* lits_out;
-
     for (size_t i = 0; i < comm_size; i++) {
-        
-        id_out = id_reference_files[i];
-        lits_out = lits_array_files[i];
-        struct int_vec current_lits = *all_lits[i];
-        struct clause* end = clauses[i]->data + clauses[i]->size;  // Get the end of the clause array
-        for (struct clause* c = clauses[i]->data; c < end; c++) {
-            //Already updated sig at logging
-            //comm_sig_update_clause(signatures[i], c->id, current_lits.data + c->start, c->nb_lits);  // Update the signature with the clause id and literals
-            plrat_importer_write_id_ref(c, id_out);
-        }
-        plrat_importer_write_ints(current_lits.data, current_lits.size, lits_out);  // Write the number of clauses
+        flush_heap_to_file(clause_heaps[i], i, 0);
         u8* sig = comm_sig_digest(signatures[i]);
-        plrat_importer_write_hash(sig, lits_out);
+        plrat_importer_write_hash(sig, out_files[i]);
         comm_sig_free(signatures[i]);
         free(sig);
     }
 
     for (size_t i = 0; i < comm_size; i++) {
-        int_vec_free(all_lits[i]);
-        clause_vec_free(clauses[i]);
-        fsync(fileno(id_reference_files[i]));
-        fclose(id_reference_files[i]);
-        fsync(fileno(lits_array_files[i]));
-        fclose(lits_array_files[i]);
-
+        heap_free(clause_heaps[i]);
+        fsync(fileno(out_files[i]));
+        fclose(out_files[i]);
+        free(file_names[i]);
     }
-    free(written_lits);
-    free(id_reference_files);
-    free(lits_array_files);
-    free(all_lits);
-    free(clauses);
+    free(out_files);
+    free(file_names);
+    free(clause_heaps);
+    free(max_ids);
     free(signatures);
 }
 
-void plrat_importer_end_old() {
-    struct clause current_clause;
-    u64 current_clause_id;
-    FILE* current_out;
-
-    for (size_t i = 0; i < comm_size; i++) {
-        //struct siphash* hash = siphash_cls_init(SECRET_KEY);  // Initialize the hash with SECRET_KEY
-        // qsort(clauses[i]->data, clauses[i]->size, sizeof(struct clause), compare_clause);
-
-        current_out = id_reference_files[i];
-        plrat_importer_write_int(clauses[i]->size, current_out);
-        //siphash_cls_update(hash, (u8*)&(clauses[i]->size), sizeof(int));
-
-        for (size_t c = 0; c < clauses[i]->size; c++) {
-            current_clause = clauses[i]->data[c];
-            current_clause_id = current_clause.id;
-            //siphash_cls_update(hash, (u8*)&current_clause_id, sizeof(u64));
-            //siphash_cls_update(hash, (u8*)&(all_lits[i]->data[current_clause.start]), current_clause.nb_lits * sizeof(int));
-            plrat_importer_write_lrat_import_file(
-                current_clause_id,
-                &(all_lits[i]->data[current_clause.start]),
-                current_clause.nb_lits,
-                current_out);
-        }
-        //u8* sig = siphash_cls_digest(hash);
-        //plrat_importer_write_hash(sig, current_out);
-        //siphash_cls_free(hash);
-    }
-
-    for (size_t i = 0; i < comm_size; i++) {
-        int_vec_free(all_lits[i]);
-        clause_vec_free(clauses[i]);
-        fclose(id_reference_files[i]);
-    }
-    free(id_reference_files);
-    free(all_lits);
-    free(clauses);
-}
-
 void plrat_importer_log(unsigned long id, const int* literals, int nb_literals) {
-    struct clause _clause;
     int file_id = plrat_utils_rank_to_x(id % n_solvers, comm_size);
-    _clause.id = id;
-    _clause.nb_lits = nb_literals;
-    _clause.start = all_lits[file_id]->size + written_lits[file_id];
+    clause_ptr _clause = create_flat_clause(id, nb_literals, literals);
     comm_sig_update_clause(signatures[file_id], id, literals, nb_literals);
-    struct clause_vec* clauses_vec = clauses[file_id];
+    struct clause_heap* clause_heap = clause_heaps[file_id];
 
-    if (clauses_vec->size == clauses_vec->capacity) { // write to file if capacity is reached
-        FILE* id_out = id_reference_files[file_id];
-        struct clause* end = clauses_vec->data + clauses_vec->size;  // Get the end of the clause array
-        for (struct clause* c = clauses_vec->data; c < end; c++) {
-            plrat_importer_write_id_ref(c, id_out);
-        }
-        clauses_vec->size = 0; // Reset used size to 0 after writing to file
-    }
-    clauses_vec->data[clauses_vec->size++] = _clause;
-
-    struct int_vec* lits_vec = all_lits[file_id];
-    FILE* lits_out = lits_array_files[file_id];
-    if ((long)lits_vec->size + (long)nb_literals > (long)lits_vec->capacity) {  // write to file if capacity is reached
-        plrat_importer_write_ints(lits_vec->data, lits_vec->size, lits_out);
-        written_lits[file_id] += lits_vec->size; // Update the total number of written literals
-        lits_vec->size = 0;  // Reset used size to 0 after writing to file
-    }
-    int_vec_reserve(lits_vec, nb_literals);  // capacity is defined to only grow and never shrink
-
-    for (int i = 0; i < nb_literals; i++) {
-        lits_vec->data[lits_vec->size++] = literals[i];
+    // write to file if capacity is reached
+    if (heap_insert(clause_heap, _clause)) {
+        flush_heap_to_file(clause_heap, file_id, 0.5);
+        heap_insert(clause_heap, _clause);
     }
 }
