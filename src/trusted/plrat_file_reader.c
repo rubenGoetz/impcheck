@@ -216,3 +216,64 @@ void plrat_reader_skip_bytes(u64 nb_bytes, struct plrat_reader* reader){
     reader->pos += nb_bytes; // move the reader to the right position
     
 }
+
+
+int plrat_reader_read_vbl_int(struct plrat_reader* reader) {
+    char* tmp_pos = reader->pos;
+    long bytes_till_end = reader->end - reader->pos;
+    u64 coefficient = 1;
+    unsigned int tmp = 0;
+
+    if (bytes_till_end <= 0) {
+        fill_buffer(reader);
+        tmp_pos = reader->pos;
+    }
+
+    while (*tmp_pos & 128) {
+        tmp += coefficient * (*tmp_pos++ & 127);
+        coefficient *= 128;
+
+        if (reader->end - tmp_pos <= 0) {
+            fill_buffer(reader);
+            tmp_pos = reader->pos;
+        }
+    }
+    tmp += coefficient * *tmp_pos++;
+    reader->pos = tmp_pos;
+
+    // calculate sign. odds map to negatives, even to positive
+    if (tmp % 2)
+        return -(int)((tmp - 1) / 2);
+    return (int)(tmp / 2);
+}
+
+u64 plrat_reader_read_vbl_ul(struct plrat_reader* reader) {
+    char* tmp_pos = reader->pos;
+    long bytes_till_end = reader->end - reader->pos;
+    u64 coefficient = 1;
+    u64 tmp = 0;
+
+    if (bytes_till_end <= 0) {
+        fill_buffer(reader);
+        tmp_pos = reader->pos;
+    }
+
+    while (*tmp_pos & 128) {
+        tmp += coefficient * (*tmp_pos++ & 127);
+        coefficient *= 128;
+
+        if (reader->end - tmp_pos <= 0) {
+            fill_buffer(reader);
+            tmp_pos = reader->pos;
+        }
+    }
+    tmp += coefficient * *tmp_pos++;
+    reader->pos = tmp_pos;
+    
+    return tmp;
+}
+
+void plrat_reader_read_vbl_ints(int* data, u64 nb_ints, struct plrat_reader* reader) {
+    for (size_t i = 0; i < nb_ints; i++)
+        data[i] = plrat_reader_read_vbl_int(reader);
+}
