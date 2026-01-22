@@ -170,7 +170,16 @@ add_executable(test_plrat_file_reader
     test/test.c
     test/test_plrat_file_reader.c)
 
-add_executable(plrat_import_to_txt
+add_executable(plrat_proxy_to_txt
     src/trusted/trusted_utils.c
     src/trusted/clause_flat.c
-    tools/plrat_import_to_txt.c)
+    src/trusted/vectors.c
+    tools/plrat_proxy_to_txt.c)
+
+add_executable(plrat_proxy_check_hash
+    src/trusted/trusted_utils.c
+    src/trusted/clause_flat.c
+    src/trusted/commutative_sig.c
+    src/trusted/vectors.c
+    src/trusted/secret.c
+    tools/plrat_proxy_check_hash.c)
