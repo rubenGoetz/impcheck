@@ -95,7 +95,7 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
         char tmp_path[1024];
 
         snprintf(folder_path, 512, "%s/%lu", out_path, plrat_reroute_get_destination_rank(i));
-        //mkdir(folder_path, 0755); already happens in rebuild
+        mkdir(folder_path, 0755);
         snprintf(tmp_path, 1024, "%s/%lu.plrat_import", folder_path, plrat_utils_rank_to_y(local_rank, comm_size));
         _bu_output_files[i] = fopen(tmp_path, "wb");
 
@@ -107,6 +107,10 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
     }
     char** file_paths = trusted_utils_malloc(sizeof(char*) * comm_size);
 
+    // signature for empty files. Avoids unnecessary error logs.
+    struct comm_sig* dummy_sig = comm_sig_init(SECRET_KEY_2);
+    u8* sig = comm_sig_digest(dummy_sig);
+    
     for (size_t i = 0; i < comm_size; i++) {
         file_paths[i] = trusted_utils_malloc(512);
         snprintf(file_paths[i], 512, "%s/%lu/%lu.plrat_proxy", out_path, local_rank, i);
@@ -114,10 +118,13 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
             // file doesn't exist
             // create placeholder file containing only 0
             FILE* f = fopen(file_paths[i], "wb");
-            trusted_utils_write_int(0, f);  // write placeholder 0 for count of clauses
+            trusted_utils_write_int(0, f);      // write placeholder 0 for count of clauses
+            trusted_utils_write_sig(sig, f);    // write placeholder signature
             fclose(f);
         }
     }
+    free(sig);
+    comm_sig_free(dummy_sig);
     import_merger_init(comm_size, file_paths, &_re_current_ID, &_re_current_literals_data, &_re_current_literals_size, read_buffer_size, NULL, comm_sig_compute);
 
     // free
