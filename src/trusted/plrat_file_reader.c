@@ -219,27 +219,21 @@ void plrat_reader_skip_bytes(u64 nb_bytes, struct plrat_reader* reader){
 
 
 int plrat_reader_read_vbl_int(struct plrat_reader* reader) {
-    char* tmp_pos = reader->pos;
     long bytes_till_end = reader->end - reader->pos;
     u64 coefficient = 1;
     unsigned int tmp = 0;
 
-    if (bytes_till_end <= 0) {
+    if (bytes_till_end <= 0)
         fill_buffer(reader);
-        tmp_pos = reader->pos;
-    }
 
-    while (*tmp_pos & 128) {
-        tmp += coefficient * (*tmp_pos++ & 127);
+    while (*(reader->pos) & 128) {
+        tmp += coefficient * (*(reader->pos)++ & 127);
         coefficient *= 128;
 
-        if (reader->end - tmp_pos <= 0) {
+        if (reader->end - reader->pos <= 0)
             fill_buffer(reader);
-            tmp_pos = reader->pos;
-        }
     }
-    tmp += coefficient * *tmp_pos++;
-    reader->pos = tmp_pos;
+    tmp += coefficient * *(reader->pos)++;
 
     // calculate sign. odds map to negatives, even to positive
     if (tmp % 2)
@@ -248,27 +242,21 @@ int plrat_reader_read_vbl_int(struct plrat_reader* reader) {
 }
 
 u64 plrat_reader_read_vbl_ul(struct plrat_reader* reader) {
-    char* tmp_pos = reader->pos;
     long bytes_till_end = reader->end - reader->pos;
     u64 coefficient = 1;
     u64 tmp = 0;
 
-    if (bytes_till_end <= 0) {
+    if (bytes_till_end <= 0)
         fill_buffer(reader);
-        tmp_pos = reader->pos;
-    }
 
-    while (*tmp_pos & 128) {
-        tmp += coefficient * (*tmp_pos++ & 127);
+    while (*(reader->pos) & 128) {
+        tmp += coefficient * (*(reader->pos)++ & 127);
         coefficient *= 128;
 
-        if (reader->end - tmp_pos <= 0) {
+        if (reader->end - reader->pos <= 0)
             fill_buffer(reader);
-            tmp_pos = reader->pos;
-        }
     }
-    tmp += coefficient * *tmp_pos++;
-    reader->pos = tmp_pos;
+    tmp += coefficient * *(reader->pos)++;
     
     return tmp;
 }
@@ -276,4 +264,13 @@ u64 plrat_reader_read_vbl_ul(struct plrat_reader* reader) {
 void plrat_reader_read_vbl_ints(int* data, u64 nb_ints, struct plrat_reader* reader) {
     for (size_t i = 0; i < nb_ints; i++)
         data[i] = plrat_reader_read_vbl_int(reader);
+}
+
+void plrat_reader_read_vbl_uls(u64* data, u64 nb_uls, struct plrat_reader* reader) {
+    for (size_t i = 0; i < nb_uls; i++)
+        data[i] = plrat_reader_read_vbl_int(reader);
+}
+
+inline char plrat_reader_read_vbl_char(struct plrat_reader* reader) {
+    return (char) plrat_reader_read_vbl_int(reader);
 }

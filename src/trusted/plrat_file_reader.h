@@ -38,8 +38,11 @@ void plrat_reader_read_uls(u64* data, u64 nb_uls, struct plrat_reader* reader);
 char plrat_reader_read_char(struct plrat_reader* reader);
 void plrat_reader_skip_bytes(u64 nb_bytes, struct plrat_reader* reader);
 void plrat_reader_seek(u64 byte_pos, struct plrat_reader* reader);
-void plrat_reader_end(struct plrat_reader* reader);
 
 int plrat_reader_read_vbl_int(struct plrat_reader* reader);
 u64 plrat_reader_read_vbl_ul(struct plrat_reader* reader);
 void plrat_reader_read_vbl_ints(int* data, u64 nb_ints, struct plrat_reader* reader);
+void plrat_reader_read_vbl_uls(u64* data, u64 nb_uls, struct plrat_reader* reader);
+char plrat_reader_read_vbl_char(struct plrat_reader* reader);
+
+void plrat_reader_end(struct plrat_reader* reader);

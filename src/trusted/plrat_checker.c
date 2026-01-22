@@ -46,6 +46,7 @@ char proof_path_in[512];
 char redestribute_path_out[512];
 
 bool do_logging = true;
+bool vbl_input;
 
 // Buffering.
 signature buf_sig;
@@ -54,15 +55,18 @@ struct u64_vec* buf_hints;
 
 void read_literals(int nb_lits) {
     int_vec_reserve(buf_lits, nb_lits);
-    plrat_reader_read_ints(buf_lits->data, nb_lits, proof);
+    vbl_input ? plrat_reader_read_vbl_ints(buf_lits->data, nb_lits, proof) : plrat_reader_read_ints(buf_lits->data, nb_lits, proof);
 }
 
 void read_hints(int nb_hints) {
     u64_vec_reserve(buf_hints, nb_hints);
-    plrat_reader_read_uls(buf_hints->data, nb_hints, proof);
+    vbl_input ? plrat_reader_read_vbl_uls(buf_hints->data, nb_hints, proof) : plrat_reader_read_uls(buf_hints->data, nb_hints, proof);
 }
 
 void skip_proof_header() {
+    if (vbl_input)
+        return;
+
     char c = '\0';
 
     c = plrat_reader_read_char(proof);
@@ -87,42 +91,6 @@ void skip_proof_header() {
         long current_pos = (proof->pos - proof->read_buffer) + loaded_start;
         plrat_reader_seek(current_pos - 1, proof);
     }
-}
-
-bool pc_load() {
-    char c = '\0';
-    bool no_error = true;
-
-    c = plrat_reader_read_char(proof);
-    if (c == TRUSTED_CHK_INIT) {
-        nb_vars = plrat_reader_read_int(proof);
-        top_check_init(nb_vars, false, false);
-    } else {
-        trusted_utils_log_err("Invalid INIT");
-        no_error = false;
-    }
-
-    c = plrat_reader_read_char(proof);
-    while (c == TRUSTED_CHK_LOAD) {
-        const int nb_lits = plrat_reader_read_int(proof);
-        read_literals(nb_lits);
-        for (int i = 0; i < nb_lits; i++) top_check_load(buf_lits->data[i]);
-        c = plrat_reader_read_char(proof);
-    }
-
-    if (c == TRUSTED_CHK_END_LOAD || c == TRUSTED_CHK_TERMINATE) {
-        top_check_end_load();
-        pc_nb_loaded_clauses = top_check_get_nb_loaded_clauses();
-        char log_str[512];
-        snprintf(log_str, 512, "Formular Loaded nb_clauses:%lu", pc_nb_loaded_clauses);
-        plrat_utils_log(log_str);
-    } else {
-        char err_str[512];
-        snprintf(err_str, 512, "Invalid END_LOAD c:%c", c);
-        plrat_utils_log_err(err_str);
-        no_error = false;
-    }
-    return no_error;
 }
 
 bool pc_load_from_file(FILE* formular) {
@@ -179,8 +147,9 @@ bool pc_load_from_file(FILE* formular) {
     return no_error;
 }
 
-void pc_init(const char* formula_path, const char* proofs_path_in, const char* proofs_path_out, unsigned long solver_id, unsigned long num_solvers, unsigned long redistribution_strategy, unsigned long read_buffer_size) {
+void pc_init(const char* formula_path, const char* proofs_path_in, const char* proofs_path_out, unsigned long solver_id, unsigned long num_solvers, unsigned long redistribution_strategy, unsigned long read_buffer_size, bool use_vbl_input) {
     FILE* formular;
+    vbl_input = use_vbl_input;
     clause_hash = siphash_cls_init(SECRET_KEY);
     snprintf(proof_path_in, 512, "%s/%lu/out.plrat", proofs_path_in, solver_id);
     snprintf(redestribute_path_out, 512, "%s", proofs_path_out);
@@ -233,16 +202,16 @@ int pc_run() {
     bool reported_error = false;
 
     while (true) {
-        int c = plrat_reader_read_char(proof);
+        int c = vbl_input ? plrat_reader_read_vbl_int(proof) : plrat_reader_read_char(proof);
         if (c == TRUSTED_CHK_CLS_PRODUCE) {
             // parse
-            u64 id = plrat_reader_read_ul(proof);
+            u64 id = vbl_input ? plrat_reader_read_vbl_ul(proof) : plrat_reader_read_ul(proof);
             siphash_cls_update(clause_hash, (u8*)&id, sizeof(u64));
             // printf("produce %lu\n", id);
-            const int nb_lits = plrat_reader_read_int(proof);
+            const int nb_lits = vbl_input ? plrat_reader_read_vbl_int(proof) : plrat_reader_read_int(proof);
             // printf("nb lits %d\n", nb_lits);
             read_literals(nb_lits);
-            const int nb_hints = plrat_reader_read_int(proof);
+            const int nb_hints = vbl_input ? plrat_reader_read_vbl_int(proof) : plrat_reader_read_int(proof);
             // printf("nb hints %d\n", nb_hints);
             read_hints(nb_hints);
             // forward to checker
@@ -253,8 +222,8 @@ int pc_run() {
 
         } else if (c == TRUSTED_CHK_CLS_IMPORT) {
             // parse
-            const u64 id = plrat_reader_read_ul(proof);
-            const int nb_lits = plrat_reader_read_int(proof);
+            const u64 id = vbl_input ? plrat_reader_read_vbl_ul(proof) : plrat_reader_read_ul(proof);
+            const int nb_lits = vbl_input ? plrat_reader_read_vbl_int(proof) : plrat_reader_read_int(proof);
             read_literals(nb_lits);
             // forward to checker
             plrat_utils_import_unchecked(id, buf_lits->data, nb_lits);
@@ -265,7 +234,7 @@ int pc_run() {
 
         } else if (c == TRUSTED_CHK_CLS_DELETE) {
             // parse
-            const int nb_hints = plrat_reader_read_int(proof);
+            const int nb_hints = vbl_input ? plrat_reader_read_vbl_int(proof) : plrat_reader_read_int(proof);
             read_hints(nb_hints);
             // forward to checker
             top_check_delete(buf_hints->data, nb_hints);
