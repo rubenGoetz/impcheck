@@ -158,6 +158,7 @@ add_executable(test_plrat_importer
     src/trusted/heap.c 
     src/trusted/plrat_utils.c 
     src/trusted/commutative_sig.c
+    src/trusted/vectors.c
     src/trusted/secret.c
     src/trusted/plrat_importer.c
     test/test.c

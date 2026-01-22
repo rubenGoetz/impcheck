@@ -39,10 +39,15 @@ struct clause_heap** clause_heaps;
 unsigned long* max_ids;
 FILE** out_files;
 char** file_names;  // to be removed. uses for file shenanigans
+u64* clause_counts; // count clauses contained in each file
 
 #ifdef UNIT_TEST
 FILE* get_plrat_importer_out_file() {
     return out_files[0];
+}
+
+char* get_plrat_importer_out_file_name() {
+    return file_names[0];
 }
 
 void set_plrat_importer_out_file(FILE* file) {
@@ -74,10 +79,11 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
     }
     out_path = main_path;
     local_rank = solver_id;
-    clause_heaps = trusted_utils_malloc(sizeof(struct clause_heap*) * num_solvers);
-    max_ids = trusted_utils_calloc(num_solvers, sizeof(unsigned long));
+    clause_heaps = trusted_utils_malloc(sizeof(struct clause_heap*) * comm_size);
+    max_ids = trusted_utils_calloc(comm_size, sizeof(unsigned long));
     out_files = trusted_utils_malloc(sizeof(FILE*) * comm_size);
     file_names = trusted_utils_malloc(sizeof(char*) * comm_size);
+    clause_counts = trusted_utils_calloc(comm_size, sizeof(u64));
     signatures = trusted_utils_malloc(sizeof(struct comm_sig*) * comm_size);
 
     if (local_rank == 0) {
@@ -89,7 +95,6 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
     for (size_t i = 0; i < comm_size; i++) {
         char proof_folder[512];
         char ids_path[1024];
-        char clauses_path[1024];
         u64 proxy_rank = plrat_importer_get_proxy_rank(i);
         if (redist_strat == 2) {
             snprintf(proof_folder, 512, "%s/%lu", out_path, proxy_rank);
@@ -101,8 +106,7 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
         }
 
         if (redist_strat == 2) {
-            snprintf(ids_path, 1024, "%s/%lu.plrat_ids", proof_folder, plrat_utils_rank_to_x(local_rank, comm_size));
-            snprintf(clauses_path, 1024, "%s/%lu.plrat_clauses", proof_folder, plrat_utils_rank_to_x(local_rank, comm_size));
+            snprintf(ids_path, 1024, "%s/%lu.plrat_proxy", proof_folder, plrat_utils_rank_to_x(local_rank, comm_size));
         } else {
             snprintf(ids_path, 1024, "%s/%lu.plrat_import", proof_folder, local_rank);
         }
@@ -114,7 +118,7 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
             snprintf(msg, 512, "out_files not created: %s\n", ids_path);
             plrat_utils_log_err(msg);
         }
-        trusted_utils_write_ints((int*)&n_solvers, 0, out_files[i]); // make shure an empty file is created
+        trusted_utils_write_int(0, out_files[i]);   // placeholder to insert number of clauses in file
         file_names[i] = trusted_utils_calloc(1024, sizeof(char));
         memcpy(file_names[i], ids_path, 1024);
 
@@ -162,6 +166,7 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
 
             // write clause to file and remove from heap
             write_flat_clause_to_file(c, out_file);
+            clause_counts[file_id]++;
             comm_sig_update_clause(signatures[file_id],
                                    get_clause_id(c),
                                    get_clause_lits(c),
@@ -171,6 +176,8 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
         }
     } else {    // merge file with heap to assure sorted clauses in file 
         rewind(out_file);
+        trusted_utils_read_int(out_file);   // skip number of clauses
+        clause_counts[file_id] = 0;
 
         // TODO: make inplace and remove file name shenanigans
         char new_file_name[1024];
@@ -183,6 +190,7 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
             trusted_utils_log_err(msg);
             exit(1);
         }
+        trusted_utils_write_int(0, new_out_file);   // placeholder to insert number of clauses in file
 
         // merge file and heap
         clause_ptr min_clause, file_clause, heap_clause;
@@ -207,12 +215,15 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
                 min_clause = file_clause;
                 file_clause = read_next_flat_clause_from_file(out_file);
                 delete_flat_clause(heap_clause);
+                heap_clause = heap_pop_min(clause_heap);
+                skip_heap_duplicates(heap_clause, clause_heap);
             } else {
                 trusted_utils_log_err("differing clauses with same id detected");
                 exit(1);
             }
 
             write_flat_clause_to_file(min_clause, new_out_file);
+            clause_counts[file_id]++;
             if (add_sig) {
                 comm_sig_update_clause(signatures[file_id],
                                        get_clause_id(min_clause),
@@ -224,8 +235,15 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
         }
 
         // write potentially remaining heap clause
-        if (heap_clause)
+        if (heap_clause) {
             write_flat_clause_to_file(heap_clause, new_out_file);
+            clause_counts[file_id]++;
+            comm_sig_update_clause(signatures[file_id],
+                                   get_clause_id(heap_clause),
+                                   get_clause_lits(heap_clause),
+                                   get_clause_nb_lits(heap_clause));
+            delete_flat_clause(heap_clause);
+        }
             
         // clean up files
         fsync(fileno(new_out_file));
@@ -243,6 +261,9 @@ void plrat_importer_end() {
         flush_heap_to_file(clause_heaps[i], i, 0);
         u8* sig = comm_sig_digest(signatures[i]);
         plrat_importer_write_hash(sig, out_files[i]);
+        // write clause count to beginning of file
+        rewind(out_files[i]);
+        trusted_utils_write_int(clause_counts[i], out_files[i]);
         comm_sig_free(signatures[i]);
         free(sig);
     }
@@ -255,6 +276,7 @@ void plrat_importer_end() {
     }
     free(out_files);
     free(file_names);
+    free(clause_counts);
     free(clause_heaps);
     free(max_ids);
     free(signatures);
@@ -263,7 +285,6 @@ void plrat_importer_end() {
 void plrat_importer_log(unsigned long id, const int* literals, int nb_literals) {
     int file_id = plrat_utils_rank_to_x(id % n_solvers, comm_size);
     clause_ptr _clause = create_flat_clause(id, nb_literals, literals);
-    comm_sig_update_clause(signatures[file_id], id, literals, nb_literals);
     struct clause_heap* clause_heap = clause_heaps[file_id];
 
     // write to file if capacity is reached

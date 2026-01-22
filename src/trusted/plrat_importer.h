@@ -14,6 +14,7 @@ void plrat_importer_end();
 void skip_heap_duplicates(clause_ptr c, struct clause_heap* heap);
 void flush_heap_to_file(struct clause_heap* clause_heap, int file_id, float flush_ratio);
 FILE* get_plrat_importer_out_file();
+char* get_plrat_importer_out_file_name();
 void set_plrat_importer_out_file(FILE* file);
 void set_plrat_importer_max_id(unsigned long id);
 #endif
