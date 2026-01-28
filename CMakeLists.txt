@@ -64,6 +64,7 @@ add_executable(plrat_first_pass
     src/trusted/plrat_utils.c 
     src/trusted/plrat_checker.c 
     src/trusted/plrat_importer.c 
+    src/trusted/merge_buffer.c
     src/trusted/clause_flat.c 
     src/trusted/main_plrat_first.c 
     src/trusted/plrat_file_reader.c
@@ -161,6 +162,7 @@ add_executable(test_plrat_importer
     src/trusted/vectors.c
     src/trusted/secret.c
     src/trusted/plrat_importer.c
+    src/trusted/merge_buffer.c
     test/test.c
     test/test_plrat_importer.c)
 target_compile_definitions(test_plrat_importer PRIVATE UNIT_TEST)
@@ -170,6 +172,13 @@ add_executable(test_plrat_file_reader
     src/trusted/plrat_file_reader.c
     test/test.c
     test/test_plrat_file_reader.c)
+
+add_executable(test_merge_buffer
+    src/trusted/trusted_utils.c 
+    src/trusted/clause_flat.c 
+    src/trusted/merge_buffer.c 
+    test/test.c 
+    test/test_merge_buffer.c)
 
 add_executable(plrat_proxy_to_txt
     src/trusted/trusted_utils.c

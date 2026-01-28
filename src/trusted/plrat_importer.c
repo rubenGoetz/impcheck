@@ -11,7 +11,6 @@
 #include <time.h>      // for clock, CLOCKS_PER_SEC, clock_t
 
 #include "checker_interface.h"
-//#include "clause.h"
 #include "hash.h"
 #include "plrat_checker.h"  // for trusted_utils_read_int, trusted_utils_log...
 #include "plrat_utils.h"
@@ -19,6 +18,7 @@
 #include "commutative_sig.h"
 #include "top_check.h"  // for top_check_commit_formula_sig, top_check_d...
 #include "heap.h"
+#include "merge_buffer.h"
 
 #ifdef UNIT_TEST
 #define unit_static
@@ -40,6 +40,7 @@ unsigned long* max_ids;
 FILE** out_files;
 char** file_names;  // to be removed. uses for file shenanigans
 u64* clause_counts; // count clauses contained in each file
+struct merge_buffer* merge_buffer;
 
 #ifdef UNIT_TEST
 FILE* get_plrat_importer_out_file() {
@@ -58,6 +59,41 @@ void set_plrat_importer_max_id(unsigned long id) {
     max_ids[0] = id;
 }
 #endif
+
+// TODO: Add dedicated unit tests
+static u64 get_merge_file_pos(u64 clause_id, FILE* file) {
+    rewind(file);
+    trusted_utils_read_int(file);
+
+    while (true) {
+        u64 id = trusted_utils_read_ul(file);
+        if (clause_id <= id)
+            break;
+        int nb_lits = trusted_utils_read_int(file);
+        trusted_utils_skip_bytes(nb_lits * sizeof(int), file);
+    }
+
+    fseek(file, -sizeof(u64), SEEK_CUR);
+    return ftell(file);
+}
+
+// TODO: Add dedicated unit tests
+static void write_clause_to_buffered_file(clause_ptr clause, FILE* write_ptr, struct merge_buffer* buffer) {
+    FILE* read_ptr = buffer->file;
+
+    if (!buffer->eof) {
+        if ((long)get_clause_size(clause) + ftell(write_ptr) < ftell(read_ptr))
+            merge_buffer_fill(buffer);
+
+        // couldn't make enough space for new clause
+        if ((long)get_clause_size(clause) + ftell(write_ptr) < ftell(read_ptr)) {
+            trusted_utils_log_err("Could not create enough space while merging clauses into .plrat_proxy file");
+            exit(1);
+        }
+    }
+
+    write_flat_clause_to_file(clause, write_ptr);
+}
 
 static void plrat_importer_write_hash(u8* hash, FILE* current_out) {
     trusted_utils_write_sig(hash, current_out);
@@ -85,6 +121,7 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
     file_names = trusted_utils_malloc(sizeof(char*) * comm_size);
     clause_counts = trusted_utils_calloc(comm_size, sizeof(u64));
     signatures = trusted_utils_malloc(sizeof(struct comm_sig*) * comm_size);
+    merge_buffer = merge_buffer_init(write_buffer_size, NULL);
 
     if (local_rank == 0) {
         char msg[512];
@@ -123,7 +160,7 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
         memcpy(file_names[i], ids_path, 1024);
 
         if (i != local_rank)
-            clause_heaps[i] = heap_init(write_buffer_size / sizeof(void*));
+            clause_heaps[i] = heap_init(write_buffer_size);
         else
             clause_heaps[i] = heap_init(1);     // Use a small placeholder for less edgecases
 
@@ -154,7 +191,7 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
     if (clause_heap->size <= 0)
         return;
     unsigned long* max_id = &(max_ids[file_id]);
-    FILE* out_file = out_files[file_id];
+    FILE* write_ptr = out_files[file_id];
     clause_ptr c = heap_get_min(clause_heap);
 
     if (*max_id < get_clause_id(c)) {   // simply appent heap to file
@@ -165,7 +202,7 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
             skip_heap_duplicates(c, clause_heap);
 
             // write clause to file and remove from heap
-            write_flat_clause_to_file(c, out_file);
+            write_flat_clause_to_file(c, write_ptr);
             clause_counts[file_id]++;
             comm_sig_update_clause(signatures[file_id],
                                    get_clause_id(c),
@@ -175,26 +212,12 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
             delete_flat_clause(c);
         }
     } else {    // merge file with heap to assure sorted clauses in file 
-        rewind(out_file);
-        trusted_utils_read_int(out_file);   // skip number of clauses
-        clause_counts[file_id] = 0;
-
-        // TODO: make inplace and remove file name shenanigans
-        char new_file_name[1024];
-        char* filename = file_names[file_id];
-        snprintf(new_file_name, 1024, "%s_tmp", filename);
-        FILE* new_out_file = fopen(new_file_name, "wb+");
-        if (new_out_file == NULL) {
-            char msg[512];
-            snprintf(msg, 512, "could not open file %s\n", new_file_name);
-            trusted_utils_log_err(msg);
-            exit(1);
-        }
-        trusted_utils_write_int(0, new_out_file);   // placeholder to insert number of clauses in file
+        merge_buffer_open_file(merge_buffer, file_names[file_id]);
+        merge_buffer_set_file_pointer(merge_buffer, get_merge_file_pos(get_clause_id(c), write_ptr));
 
         // merge file and heap
         clause_ptr min_clause, file_clause, heap_clause;
-        file_clause = read_next_flat_clause_from_file(out_file);
+        file_clause = merge_buffer_next_clause(merge_buffer);
         if (clause_heap->size > (clause_heap->capacity * flush_ratio)) {
             heap_clause = heap_pop_min(clause_heap);
             skip_heap_duplicates(heap_clause, clause_heap);
@@ -210,10 +233,10 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
                 add_sig = true;
             } else if (!heap_clause || get_clause_id(file_clause) < get_clause_id(heap_clause)) {
                 min_clause = file_clause;
-                file_clause = read_next_flat_clause_from_file(out_file);
+                file_clause = merge_buffer_next_clause(merge_buffer);
             } else if (compare_flat_clause(file_clause, heap_clause)) {
                 min_clause = file_clause;
-                file_clause = read_next_flat_clause_from_file(out_file);
+                file_clause = merge_buffer_next_clause(merge_buffer);
                 delete_flat_clause(heap_clause);
                 heap_clause = heap_pop_min(clause_heap);
                 skip_heap_duplicates(heap_clause, clause_heap);
@@ -222,9 +245,9 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
                 exit(1);
             }
 
-            write_flat_clause_to_file(min_clause, new_out_file);
-            clause_counts[file_id]++;
+            write_clause_to_buffered_file(min_clause, write_ptr, merge_buffer);
             if (add_sig) {
+                clause_counts[file_id]++;
                 comm_sig_update_clause(signatures[file_id],
                                        get_clause_id(min_clause),
                                        get_clause_lits(min_clause),
@@ -236,7 +259,7 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
 
         // write potentially remaining heap clause
         if (heap_clause) {
-            write_flat_clause_to_file(heap_clause, new_out_file);
+            write_clause_to_buffered_file(heap_clause, write_ptr, merge_buffer);
             clause_counts[file_id]++;
             comm_sig_update_clause(signatures[file_id],
                                    get_clause_id(heap_clause),
@@ -244,15 +267,6 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
                                    get_clause_nb_lits(heap_clause));
             delete_flat_clause(heap_clause);
         }
-            
-        // clean up files
-        fsync(fileno(new_out_file));
-        fclose(out_file);
-        fclose(new_out_file);
-        remove(filename);
-        rename(new_file_name, filename);
-        out_files[file_id] = fopen(filename, "rb+");
-        fseek(out_files[file_id], 0, SEEK_END);
     }
 }
 
@@ -280,6 +294,7 @@ void plrat_importer_end() {
     free(clause_heaps);
     free(max_ids);
     free(signatures);
+    merge_buffer_free(merge_buffer);
 }
 
 void plrat_importer_log(unsigned long id, const int* literals, int nb_literals) {

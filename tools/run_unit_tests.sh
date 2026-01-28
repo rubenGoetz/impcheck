@@ -1,6 +1,6 @@
 #!/bin/bash
 
-test_list=(test_flat_clause test_heap test_plrat_importer test_plrat_file_reader)
+test_list=(test_flat_clause test_heap test_plrat_importer test_plrat_file_reader test_merge_buffer)
 
 # Navigate to build dir
 cd "$(dirname "$0")/.."

@@ -115,7 +115,7 @@ static void check_merge_flush() {
     struct comm_sig* expected_sig = comm_sig_init(SECRET_KEY_2);
     u8 read_sig[16];
     do_assert(heap->size == 0);
-    plrat_importer_init(TEST_DIR, 0, 1, 1, 1);
+    plrat_importer_init(TEST_DIR, 0, 1, 1, HEAP_CAPACITY);
     size_t unique_clause_cnt = NUM_CLAUSES / 2;
     for (size_t i = 0; i < NUM_CLAUSES / 2; i++) {
         clause_ptr clause_cpy = create_flat_clause(get_clause_id(clauses[i]),
@@ -189,7 +189,7 @@ static void check_doubling_id() {
         if (!freopen("/dev/null", "w", stdout))
             printf("   * could not mute child process\n");
 
-        plrat_importer_init(TEST_DIR, 0, 1, 1, 1);
+        plrat_importer_init(TEST_DIR, 0, 1, 1, HEAP_CAPACITY);
 
         int lits1[3] = {1,2,3};
         int lits2[3] = {4,5,6};
@@ -309,7 +309,6 @@ static void init_tests() {
     char cmd[512];
     snprintf(cmd, 512, "if [ -d \"%s\" ]; then rm -r %s; fi; mkdir %s; cd %s; mkdir 0;", TEST_DIR, TEST_DIR, TEST_DIR, TEST_DIR);
     do_assert(!system(cmd));
-    printf("   * init mock plrat_importer: ");
     lits_buffer = int_vec_init(1);
 }
 
