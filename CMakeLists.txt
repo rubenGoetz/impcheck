@@ -193,3 +193,10 @@ add_executable(plrat_proxy_check_hash
     src/trusted/vectors.c
     src/trusted/secret.c
     tools/plrat_proxy_check_hash.c)
+
+add_executable(vbl_plrat_to_txt
+    src/trusted/trusted_utils.c
+    src/trusted/clause_flat.c
+    src/trusted/vectors.c
+    src/trusted/plrat_file_reader.c
+    tools/vbl_plrat_to_txt.c)
