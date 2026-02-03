@@ -26,6 +26,7 @@ u64 local_rank;    // solver id
 FILE* my_proof;
 const u64 empty_ID = -1;
 struct siphash* proof_check_hash;
+u8 sig_res_reported[16];
 struct siphash** import_check_hash;
 
 // Buffering.
@@ -39,12 +40,17 @@ struct plrat_reader* proof_reader;
 
 struct int_vec* proof_lits;
 
+bool vbl_input;
+
 void read_literals(int nb_lits) {
     int_vec_reserve(proof_lits, nb_lits);
     plrat_reader_read_ints(proof_lits->data, nb_lits, proof_reader);
 }
 
 void skip_proof_header() {
+    if (vbl_input)
+        return;
+
     char c = '\0';
 
     c = plrat_reader_read_char(proof_reader);
@@ -84,8 +90,245 @@ void skip_proof_header() {
     }
 }
 
-void plrat_finder_init(const char* main_path, const char* imports_path, unsigned long solver_id, unsigned long num_solvers, unsigned long redistribution_strategy, unsigned long read_buffer_size) {
+void parse(bool* found_T) {
+    while (true) {
+        int c = plrat_reader_read_vbl_char(proof_reader);
+        if (plrat_reader_eof_reached(proof_reader)) {
+            if (current_ID != empty_ID) {
+                char err_str[512];
+                snprintf(err_str, 512, "Error: clause left to check rank:%lu ID:%lu", local_rank, current_ID);
+                plrat_utils_log_err(err_str);
+                exit(1);
+            }
+            const u8* sig_res_computed = siphash_cls_digest(proof_check_hash);
+
+            if (!trusted_utils_equal_signatures(sig_res_computed, sig_res_reported)) {
+                trusted_utils_log_err("Signature does not match in Proof!");
+                printf("Signature A is: %lu\n", *((u64*)sig_res_computed));
+                printf("Signature B is: %lu\n", *((u64*)sig_res_reported));
+                exit(1);
+            } else {
+                char msg[512];
+                snprintf(msg, 512, "Signature matches in local rank: %lu", local_rank);
+                //trusted_utils_log(msg);
+            }
+            siphash_cls_free(proof_check_hash);
+            for (size_t i = 0; i < comm_size; i++) {
+                sig_res_computed = siphash_cls_digest(import_check_hash[i]);
+                import_merger_read_sig((int*)sig_res_reported, i);
+                if (!trusted_utils_equal_signatures(sig_res_computed, sig_res_reported)) {
+                    trusted_utils_log_err("Signature does not match in import!");
+                    printf("Signature A is: %lu\n", *((u64*)sig_res_computed));
+                    printf("Signature B is: %lu\n", *((u64*)sig_res_reported));
+                    exit(1);
+                } else {
+                    char msg[512];
+                    snprintf(msg, 512, "Signature matches in import local rank: %lu", local_rank);
+                    //trusted_utils_log(msg);
+                }
+            }
+            *found_T = true;
+            break;
+        } else if (c == TRUSTED_CHK_CLS_PRODUCE) {
+            int_vec_resize(proof_lits, 0);
+
+            u64 id = (u64)plrat_reader_read_vbl_sl(proof_reader);
+
+            siphash_cls_update(proof_check_hash, (u8*)&id, sizeof(u64));
+            
+            // parse lits
+            int nb_lits = 0;
+            while (true) {
+                int lit = plrat_reader_read_vbl_int(proof_reader);
+                if (!lit) break;
+                int_vec_push(proof_lits, lit);
+                nb_lits++;
+            }
+
+            siphash_cls_update(proof_check_hash, (u8*)proof_lits->data, nb_lits * sizeof(int));
+            
+            // skip hints
+            while (true) {
+                u64 hint = plrat_reader_read_vbl_sl(proof_reader);
+                if (!hint) break;
+            }
+
+            // skip line
+            if (id < current_ID) {
+                continue;
+            }
+
+            // check if the clause is the same
+            if (id == current_ID) {
+                // TODO: make possible for differently sorted lits
+                //       Or let Mallob print sorted lits
+                if (plrat_utils_compare_semi_sorted_lits(current_literals_data, proof_lits->data, current_literals_size, nb_lits)) {
+                    break;
+                } else {
+                    char err_str[512];
+                    snprintf(err_str, 512, "literals do not match in proof my rank:%lu ID:%lu", local_rank, current_ID);
+                    printf(">> ftell() = %li, total_bytes = %li, fgetc().eof? = %i\n", ftell(proof_reader->buffered_file), proof_reader->total_bytes, fgetc(proof_reader->buffered_file) == EOF);
+                    if (true/*local_rank == 0*/) {
+                        printf("current_literals_data %lu: ", current_literals_size);
+                        for (u64 i = 0; i < current_literals_size; i++) {
+                            printf("%d ", current_literals_data[i]);
+                        }
+                        printf("\n");
+                        printf("proof_lits %i: ", nb_lits);
+                        for (int i = 0; i < nb_lits; i++) {
+                            printf("%d ", proof_lits->data[i]);
+                        }
+                        printf("\n");
+                    }
+
+                    plrat_utils_log_err(err_str);
+                    exit(1);
+                }
+            }
+
+            if (id > current_ID) {
+                char err_str[512];
+                snprintf(err_str, 512, "clause not found in proof my rank:%lu ID:%lu", local_rank, current_ID);
+                plrat_utils_log_err(err_str);
+                exit(1);
+            }
+
+        } else if (c == TRUSTED_CHK_CLS_IMPORT) {
+            // skip id
+            plrat_reader_read_vbl_sl(proof_reader);
+
+            // skip lits
+            while (true) {
+                int lit = plrat_reader_read_vbl_int(proof_reader);
+                if (!lit) break;
+            }
+
+        } else if (c == TRUSTED_CHK_CLS_DELETE) {
+            // skip hints
+            while (true) {
+                u64 hint = (u64)plrat_reader_read_vbl_sl(proof_reader);
+                if (!hint) break;
+            }
+            
+        } else {
+            trusted_utils_log_err("Invalid directive!");
+            exit(1);
+        }
+    }
+}
+
+void parse_legacy(bool* found_T) {
+    while (true) {
+        int c = plrat_reader_read_char(proof_reader);
+        if (c == TRUSTED_CHK_CLS_PRODUCE) {
+            // parse
+            u64 id = plrat_reader_read_ul(proof_reader);
+            // if (local_rank == 0) {
+            //     printf("id: %lu\n", id);
+            // }
+
+            siphash_cls_update(proof_check_hash, (u8*)&id, sizeof(u64));
+            const int nb_lits = plrat_reader_read_int(proof_reader);
+            // TODO: ALWAYS read lits for siphash_cls_update
+            read_literals(nb_lits);
+            siphash_cls_update(proof_check_hash, (u8*)proof_lits->data, nb_lits * sizeof(int));
+            int nb_hints;
+            nb_hints = plrat_reader_read_int(proof_reader);
+            plrat_reader_skip_bytes(nb_hints * sizeof(u64), proof_reader);
+            // skip line
+            if (id < current_ID) {
+                continue;
+            }
+            // check if the clause is the same
+            if (id == current_ID) {
+                if (plrat_utils_compare_lits(current_literals_data, proof_lits->data, current_literals_size, nb_lits)) {
+                    // plrat_utils_log("found clause, nice");
+                    break;
+                } else {
+                    char err_str[512];
+                    snprintf(err_str, 512, "literals do not match in proof my rank:%lu ID:%lu", local_rank, current_ID);
+                    if (local_rank == 0) {
+                        printf("current_literals_data %lu: ", current_literals_size);
+                        for (u64 i = 0; i < current_literals_size; i++) {
+                            printf("%d ", current_literals_data[i]);
+                        }
+                        printf("\n");
+                        printf("proof_lits %i: ", nb_lits);
+                        for (int i = 0; i < nb_lits; i++) {
+                            printf("%d ", proof_lits->data[i]);
+                        }
+                        printf("\n");
+                    }
+
+                    plrat_utils_log_err(err_str);
+                    exit(1);
+                }
+            }
+            if (id > current_ID) {
+                char err_str[512];
+                snprintf(err_str, 512, "clause not found in proof my rank:%lu ID:%lu", local_rank, current_ID);
+                plrat_utils_log_err(err_str);
+                exit(1);
+            }
+
+        } else if (c == TRUSTED_CHK_CLS_IMPORT) {
+            plrat_reader_skip_bytes(sizeof(u64), proof_reader);
+            const int nb_lits = plrat_reader_read_int(proof_reader);
+            plrat_reader_skip_bytes(nb_lits * sizeof(int), proof_reader);
+
+        } else if (c == TRUSTED_CHK_CLS_DELETE) {
+            // parse
+            const int nb_hints = plrat_reader_read_int(proof_reader);
+            plrat_reader_skip_bytes(nb_hints * sizeof(u64), proof_reader);
+
+        } else if (c == TRUSTED_CHK_TERMINATE) {
+            if (current_ID != empty_ID) {
+                char err_str[512];
+                snprintf(err_str, 512, "Error: clause left to check rank:%lu ID:%lu", local_rank, current_ID);
+                plrat_utils_log_err(err_str);
+                exit(1);
+            }
+            const u8* sig_res_computed = siphash_cls_digest(proof_check_hash);
+            const u8 sig_res_reported[16];
+            plrat_reader_read_ints((int*)sig_res_reported, 4, proof_reader);
+            if (!trusted_utils_equal_signatures(sig_res_computed, sig_res_reported)) {
+                trusted_utils_log_err("Signature does not match in Proof!");
+                printf("Signature A is: %lu\n", *((u64*)sig_res_computed));
+                printf("Signature B is: %lu\n", *((u64*)sig_res_reported));
+                exit(1);
+            } else {
+                char msg[512];
+                snprintf(msg, 512, "Signature matches in local rank: %lu", local_rank);
+                //trusted_utils_log(msg);
+            }
+            siphash_cls_free(proof_check_hash);
+            for (size_t i = 0; i < comm_size; i++) {
+                sig_res_computed = siphash_cls_digest(import_check_hash[i]);
+                import_merger_read_sig((int*)sig_res_reported, i);
+                if (!trusted_utils_equal_signatures(sig_res_computed, sig_res_reported)) {
+                    trusted_utils_log_err("Signature does not match in import!");
+                    printf("Signature A is: %lu\n", *((u64*)sig_res_computed));
+                    printf("Signature B is: %lu\n", *((u64*)sig_res_reported));
+                    exit(1);
+                } else {
+                    char msg[512];
+                    snprintf(msg, 512, "Signature matches in import local rank: %lu", local_rank);
+                    //trusted_utils_log(msg);
+                }
+            }
+            *found_T = true;
+            break;
+
+        } else {
+            trusted_utils_log_err("Invalid directive!");
+            exit(1);
+        }
+    }
+}
+
+void plrat_finder_init(const char* main_path, const char* imports_path, unsigned long solver_id, unsigned long num_solvers, unsigned long redistribution_strategy, unsigned long read_buffer_size, bool use_vbl_input) {
     redist_strat = redistribution_strategy;
+    vbl_input = use_vbl_input;
     n_solvers = num_solvers;
     double d_num = (double)n_solvers;
     root_n = sqrt(d_num);
@@ -99,8 +342,17 @@ void plrat_finder_init(const char* main_path, const char* imports_path, unsigned
     snprintf(confirm_folder, 512, "%s/%lu/.check_ok", imports_path, local_rank);
 
     char proof_path[768];
-    snprintf(proof_path, 768, "%s/%lu/out.plrat", main_path, local_rank);
+    char finger_print_path[1024];
+    snprintf(proof_path, 768, "%s/%lu/out.palrup", main_path, local_rank);
+    snprintf(finger_print_path, 1024, "%s.hash", proof_path);
     my_proof = fopen(proof_path, "rb");
+    FILE* finger_print = fopen(finger_print_path, "rb");
+    if (!finger_print) {
+        char msg[1024];
+        snprintf(msg, 1024, "Can't open file %s", finger_print_path);
+        trusted_utils_log_err(msg);
+    }
+    trusted_utils_read_sig(sig_res_reported, finger_print);
 
     proof_check_hash = siphash_cls_init(SECRET_KEY);
     proof_reader = plrat_reader_init(read_buffer_size, my_proof, local_rank);
@@ -124,14 +376,8 @@ void plrat_finder_init(const char* main_path, const char* imports_path, unsigned
         free(file_paths[i]);
     }
     free(file_paths);
+    fclose(finger_print);
 }
-
-// int compare_clause(const void* a, const void* b) {
-//     u64 id_a = ((struct clause*)a)->id;
-//     u64 id_b = ((struct clause*)b)->id;
-//     if (id_a <= id_b) return -1;
-//     return 1;  // Dont care about a == b
-// }
 
 void plrat_finder_end() {
     for (size_t i = 0; i < comm_size; i++)  {
@@ -150,112 +396,10 @@ void plrat_finder_run() {
 
         // if (current_ID == empty_ID) break;
 
-        while (true) {
-            int c = plrat_reader_read_char(proof_reader);
-            if (c == TRUSTED_CHK_CLS_PRODUCE) {
-                // parse
-                u64 id = plrat_reader_read_ul(proof_reader);
-                // if (local_rank == 0) {
-                //     printf("id: %lu\n", id);
-                // }
-
-                siphash_cls_update(proof_check_hash, (u8*)&id, sizeof(u64));
-                const int nb_lits = plrat_reader_read_int(proof_reader);
-                // TODO: ALWAYS read lits for siphash_cls_update
-                read_literals(nb_lits);
-                siphash_cls_update(proof_check_hash, (u8*)proof_lits->data, nb_lits * sizeof(int));
-                int nb_hints;
-                nb_hints = plrat_reader_read_int(proof_reader);
-                plrat_reader_skip_bytes(nb_hints * sizeof(u64), proof_reader);
-                // skip line
-                if (id < current_ID) {
-                    continue;
-                }
-                // check if the clause is the same
-                if (id == current_ID) {
-                    if (plrat_utils_compare_lits(current_literals_data, proof_lits->data, current_literals_size, nb_lits)) {
-                        // plrat_utils_log("found clause, nice");
-                        break;
-                    } else {
-                        char err_str[512];
-                        snprintf(err_str, 512, "literals do not match in proof my rank:%lu ID:%lu", local_rank, current_ID);
-                        if (local_rank == 0) {
-                            printf("current_literals_data %lu: ", current_literals_size);
-                            for (u64 i = 0; i < current_literals_size; i++) {
-                                printf("%d ", current_literals_data[i]);
-                            }
-                            printf("\n");
-                            printf("proof_lits %i: ", nb_lits);
-                            for (int i = 0; i < nb_lits; i++) {
-                                printf("%d ", proof_lits->data[i]);
-                            }
-                            printf("\n");
-                        }
-
-                        plrat_utils_log_err(err_str);
-                        exit(1);
-                    }
-                }
-                if (id > current_ID) {
-                    char err_str[512];
-                    snprintf(err_str, 512, "clause not found in proof my rank:%lu ID:%lu", local_rank, current_ID);
-                    plrat_utils_log_err(err_str);
-                    exit(1);
-                }
-
-            } else if (c == TRUSTED_CHK_CLS_IMPORT) {
-                plrat_reader_skip_bytes(sizeof(u64), proof_reader);
-                const int nb_lits = plrat_reader_read_int(proof_reader);
-                plrat_reader_skip_bytes(nb_lits * sizeof(int), proof_reader);
-
-            } else if (c == TRUSTED_CHK_CLS_DELETE) {
-                // parse
-                const int nb_hints = plrat_reader_read_int(proof_reader);
-                plrat_reader_skip_bytes(nb_hints * sizeof(u64), proof_reader);
-
-            } else if (c == TRUSTED_CHK_TERMINATE) {
-                if (current_ID != empty_ID) {
-                    char err_str[512];
-                    snprintf(err_str, 512, "Error: clause left to check rank:%lu ID:%lu", local_rank, current_ID);
-                    plrat_utils_log_err(err_str);
-                    exit(1);
-                }
-                const u8* sig_res_computed = siphash_cls_digest(proof_check_hash);
-                const u8 sig_res_reported[16];
-                plrat_reader_read_ints((int*)sig_res_reported, 4, proof_reader);
-                if (!trusted_utils_equal_signatures(sig_res_computed, sig_res_reported)) {
-                    trusted_utils_log_err("Signature does not match in Proof!");
-                    printf("Signature A is: %lu\n", *((u64*)sig_res_computed));
-                    printf("Signature B is: %lu\n", *((u64*)sig_res_reported));
-                    exit(1);
-                } else {
-                    char msg[512];
-                    snprintf(msg, 512, "Signature matches in local rank: %lu", local_rank);
-                    //trusted_utils_log(msg);
-                }
-                siphash_cls_free(proof_check_hash);
-                for (size_t i = 0; i < comm_size; i++) {
-                    sig_res_computed = siphash_cls_digest(import_check_hash[i]);
-                    import_merger_read_sig((int*)sig_res_reported, i);
-                    if (!trusted_utils_equal_signatures(sig_res_computed, sig_res_reported)) {
-                        trusted_utils_log_err("Signature does not match in import!");
-                        printf("Signature A is: %lu\n", *((u64*)sig_res_computed));
-                        printf("Signature B is: %lu\n", *((u64*)sig_res_reported));
-                        exit(1);
-                    } else {
-                        char msg[512];
-                        snprintf(msg, 512, "Signature matches in import local rank: %lu", local_rank);
-                        //trusted_utils_log(msg);
-                    }
-                }
-                found_T = true;
-                break;
-
-            } else {
-                trusted_utils_log_err("Invalid directive!");
-                exit(1);
-            }
-        }
+        if (vbl_input)
+            parse(&found_T);
+        else
+            parse_legacy(&found_T);
     }
     mkdir(confirm_folder, 0777);
 

@@ -30,9 +30,11 @@ void fill_buffer(struct plrat_reader* reader);
 
 struct plrat_reader* plrat_reader_init(u64 buffer_size_bytes, FILE* file, int local_rank);
 bool plrat_reader_check_bounds(u64 nb_bytes, struct plrat_reader* reader);
+bool plrat_reader_eof_reached(struct plrat_reader* reader);
 
 int plrat_reader_read_int(struct plrat_reader* reader);
 void plrat_reader_read_ints(int* data, u64 nb_ints, struct plrat_reader* reader);
+long plrat_reader_read_vbl_sl(struct plrat_reader* reader);
 u64  plrat_reader_read_ul(struct plrat_reader* reader);
 void plrat_reader_read_uls(u64* data, u64 nb_uls, struct plrat_reader* reader);
 char plrat_reader_read_char(struct plrat_reader* reader);

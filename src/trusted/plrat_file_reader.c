@@ -137,6 +137,9 @@ bool plrat_reader_check_bounds(u64 nb_bytes, struct plrat_reader* reader){
     return true;
 }
 
+bool plrat_reader_eof_reached(struct plrat_reader* reader) {
+    return (reader->end <= reader->pos) && (!reader->remaining_bytes);
+}
 
 int plrat_reader_read_int(struct plrat_reader* reader){
     int res;
@@ -241,6 +244,29 @@ int plrat_reader_read_vbl_int(struct plrat_reader* reader) {
     return (int)(tmp / 2);
 }
 
+long plrat_reader_read_vbl_sl(struct plrat_reader* reader) {
+    long bytes_till_end = reader->end - reader->pos;
+    u64 coefficient = 1;
+    unsigned long tmp = 0;
+
+    if (bytes_till_end <= 0)
+        fill_buffer(reader);
+
+    while (*(reader->pos) & 128) {
+        tmp += coefficient * (*(reader->pos)++ & 127);
+        coefficient *= 128;
+
+        if (reader->end - reader->pos <= 0)
+            fill_buffer(reader);
+    }
+    tmp += coefficient * *(reader->pos)++;
+
+    // calculate sign. odds map to negatives, even to positive
+    if (tmp % 2)
+        return -(long)((tmp - 1) / 2);
+    return (long)(tmp / 2);
+}
+
 u64 plrat_reader_read_vbl_ul(struct plrat_reader* reader) {
     long bytes_till_end = reader->end - reader->pos;
     u64 coefficient = 1;
@@ -272,5 +298,5 @@ void plrat_reader_read_vbl_uls(u64* data, u64 nb_uls, struct plrat_reader* reade
 }
 
 inline char plrat_reader_read_vbl_char(struct plrat_reader* reader) {
-    return (char) plrat_reader_read_vbl_int(reader);
+    return plrat_reader_read_char(reader);
 }

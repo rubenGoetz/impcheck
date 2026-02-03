@@ -55,12 +55,12 @@ struct u64_vec* buf_hints;
 
 void read_literals(int nb_lits) {
     int_vec_reserve(buf_lits, nb_lits);
-    vbl_input ? plrat_reader_read_vbl_ints(buf_lits->data, nb_lits, proof) : plrat_reader_read_ints(buf_lits->data, nb_lits, proof);
+    plrat_reader_read_ints(buf_lits->data, nb_lits, proof);
 }
 
 void read_hints(int nb_hints) {
     u64_vec_reserve(buf_hints, nb_hints);
-    vbl_input ? plrat_reader_read_vbl_uls(buf_hints->data, nb_hints, proof) : plrat_reader_read_uls(buf_hints->data, nb_hints, proof);
+    plrat_reader_read_uls(buf_hints->data, nb_hints, proof);
 }
 
 void skip_proof_header() {
@@ -147,11 +147,177 @@ bool pc_load_from_file(FILE* formular) {
     return no_error;
 }
 
+void parse(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
+    while (true) {
+        char c = plrat_reader_read_vbl_char(proof);
+        if (plrat_reader_eof_reached(proof)) {
+            u8* sig = siphash_cls_digest(clause_hash);
+
+            // write in new file for stage 2
+            char finger_print_path[512];
+            snprintf(finger_print_path, 512, "%s.hash", proof_path_in);
+            FILE* finger_print = fopen(finger_print_path, "wb");
+            if (!finger_print) {
+                char msg[1024];
+                snprintf(msg, 1024, "Can't open file %s", finger_print_path);
+                trusted_utils_log_err(msg);
+            }
+                
+            trusted_utils_write_sig(sig, finger_print);
+            fsync(fileno(finger_print));
+            fclose(finger_print);
+
+            break;
+
+        } else if (c == TRUSTED_CHK_CLS_PRODUCE) {
+            int_vec_resize(buf_lits, 0);
+            u64_vec_resize(buf_hints, 0);
+            
+            u64 id = (u64)plrat_reader_read_vbl_sl(proof);
+            siphash_cls_update(clause_hash, (u8*)&id, sizeof(u64));
+            
+            // parse lits
+            int nb_lits = 0;
+            while (true) {
+                int lit = plrat_reader_read_vbl_int(proof);
+                if (!lit) break;
+                int_vec_push(buf_lits, lit);
+                nb_lits++;
+            }
+            siphash_cls_update(clause_hash, (u8*)buf_lits->data, nb_lits * sizeof(int));
+
+            // parse hints
+            int nb_hints = 0;
+            while (true) {
+                u64 hint = (u64)plrat_reader_read_vbl_sl(proof);
+                if (!hint) break;
+                u64_vec_push(buf_hints, hint);
+                nb_hints++;
+            }
+
+            // forward to checker
+            top_check_produce(id, buf_lits->data, nb_lits,
+                              buf_hints->data, nb_hints);
+            *nb_produced += 1;
+
+        } else if (c == TRUSTED_CHK_CLS_IMPORT) {
+            int_vec_resize(buf_lits, 0);
+
+            u64 id = (u64)plrat_reader_read_vbl_sl(proof);
+
+            // parse lits
+            int nb_lits = 0;
+            while (true) {
+                int lit = plrat_reader_read_vbl_int(proof);
+                if (!lit) break;
+                int_vec_push(buf_lits, lit);
+                nb_lits++;
+            }
+
+            // forward to checker
+            plrat_utils_import_unchecked(id, buf_lits->data, nb_lits);
+            *nb_imported += 1;
+
+            // write in file for stage 2
+            plrat_importer_log(id, buf_lits->data, nb_lits);
+
+        } else if (c == TRUSTED_CHK_CLS_DELETE) {
+            u64_vec_resize(buf_hints, 0);
+
+            // parse hints
+            int nb_hints = 0;
+            while (true) {
+                u64 hint = (u64)plrat_reader_read_vbl_sl(proof);
+                if (!hint) break;
+                u64_vec_push(buf_hints, hint);
+                nb_hints++;
+            }
+
+            top_check_delete(buf_hints->data, nb_hints);
+            *nb_deleted += nb_hints;
+
+        } else {
+            char errlog[512];
+            snprintf(errlog, 512, "Invalid directive! c: %d filesize:%lu", c, proof->total_bytes);
+            trusted_utils_log_err(errlog);
+            exit(1);
+        }
+
+        if (MALLOB_UNLIKELY(!top_check_valid())) {    
+            trusted_utils_log_err(trusted_utils_msgstr);
+            exit(1);
+        }
+    }
+}
+
+void parse_legacy(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
+    while (true) {
+        int c = plrat_reader_read_char(proof);
+        if (c == TRUSTED_CHK_CLS_PRODUCE) {
+            // parse
+            u64 id = plrat_reader_read_ul(proof);
+            siphash_cls_update(clause_hash, (u8*)&id, sizeof(u64));
+            // printf("produce %lu\n", id);
+            const int nb_lits = plrat_reader_read_int(proof);
+            // printf("nb lits %d\n", nb_lits);
+            read_literals(nb_lits);
+            const int nb_hints = plrat_reader_read_int(proof);
+            // printf("nb hints %d\n", nb_hints);
+            read_hints(nb_hints);
+            // forward to checker
+            top_check_produce(id, buf_lits->data, nb_lits,
+                              buf_hints->data, nb_hints);
+            *nb_produced += 1;
+            siphash_cls_update(clause_hash, (u8*)buf_lits->data, nb_lits * sizeof(int));
+
+        } else if (c == TRUSTED_CHK_CLS_IMPORT) {
+            // parse
+            const u64 id = plrat_reader_read_ul(proof);
+            const int nb_lits = plrat_reader_read_int(proof);
+            read_literals(nb_lits);
+            // forward to checker
+            plrat_utils_import_unchecked(id, buf_lits->data, nb_lits);
+            *nb_imported += 1;
+
+            // write in file for stage 2
+            plrat_importer_log(id, buf_lits->data, nb_lits);
+
+        } else if (c == TRUSTED_CHK_CLS_DELETE) {
+            // parse
+            const int nb_hints = plrat_reader_read_int(proof);
+            read_hints(nb_hints);
+            // forward to checker
+            top_check_delete(buf_hints->data, nb_hints);
+            *nb_deleted += nb_hints;
+
+        } else if (c == TRUSTED_CHK_TERMINATE) {
+            u8* sig = siphash_cls_digest(clause_hash);
+            // write in file for stage 2
+            long left_bytes = proof->end - proof->pos;
+            if (left_bytes > 0) fseek(proof->buffered_file, -left_bytes, SEEK_CUR);
+            
+            trusted_utils_write_sig(sig, proof->buffered_file);
+            break;
+
+        } else {
+            char errlog[512];
+            snprintf(errlog, 512, "Invalid directive! rank: %lu c: %d filesize:%lu", solver_rank, c, proof->total_bytes);
+            trusted_utils_log_err(errlog);
+            exit(1);
+        }
+
+        if (MALLOB_UNLIKELY(!top_check_valid())) {    
+            trusted_utils_log_err(trusted_utils_msgstr);
+            exit(1);
+        }
+    }
+}
+
 void pc_init(const char* formula_path, const char* proofs_path_in, const char* proofs_path_out, unsigned long solver_id, unsigned long num_solvers, unsigned long redistribution_strategy, unsigned long read_buffer_size, bool use_vbl_input) {
     FILE* formular;
     vbl_input = use_vbl_input;
     clause_hash = siphash_cls_init(SECRET_KEY);
-    snprintf(proof_path_in, 512, "%s/%lu/out.plrat", proofs_path_in, solver_id);
+    snprintf(proof_path_in, 512, "%s/%lu/out.palrup", proofs_path_in, solver_id);
     snprintf(redestribute_path_out, 512, "%s", proofs_path_out);
 
     if (access(proof_path_in, F_OK) != 0) {
@@ -199,71 +365,12 @@ void pc_end() {
 int pc_run() {
     clock_t start = clock();
     u64 nb_produced = 0, nb_imported = 0, nb_deleted = 0;
-    bool reported_error = false;
 
-    while (true) {
-        int c = vbl_input ? plrat_reader_read_vbl_int(proof) : plrat_reader_read_char(proof);
-        if (c == TRUSTED_CHK_CLS_PRODUCE) {
-            // parse
-            u64 id = vbl_input ? plrat_reader_read_vbl_ul(proof) : plrat_reader_read_ul(proof);
-            siphash_cls_update(clause_hash, (u8*)&id, sizeof(u64));
-            // printf("produce %lu\n", id);
-            const int nb_lits = vbl_input ? plrat_reader_read_vbl_int(proof) : plrat_reader_read_int(proof);
-            // printf("nb lits %d\n", nb_lits);
-            read_literals(nb_lits);
-            const int nb_hints = vbl_input ? plrat_reader_read_vbl_int(proof) : plrat_reader_read_int(proof);
-            // printf("nb hints %d\n", nb_hints);
-            read_hints(nb_hints);
-            // forward to checker
-            top_check_produce(id, buf_lits->data, nb_lits,
-                              buf_hints->data, nb_hints);
-            nb_produced++;
-            siphash_cls_update(clause_hash, (u8*)buf_lits->data, nb_lits * sizeof(int));
+    if (vbl_input)
+        parse(&nb_produced, &nb_imported, &nb_deleted);
+    else
+        parse_legacy(&nb_produced, &nb_imported, &nb_deleted);
 
-        } else if (c == TRUSTED_CHK_CLS_IMPORT) {
-            // parse
-            const u64 id = vbl_input ? plrat_reader_read_vbl_ul(proof) : plrat_reader_read_ul(proof);
-            const int nb_lits = vbl_input ? plrat_reader_read_vbl_int(proof) : plrat_reader_read_int(proof);
-            read_literals(nb_lits);
-            // forward to checker
-            plrat_utils_import_unchecked(id, buf_lits->data, nb_lits);
-            nb_imported++;
-
-            // write in file for stage 2
-            plrat_importer_log(id, buf_lits->data, nb_lits);
-
-        } else if (c == TRUSTED_CHK_CLS_DELETE) {
-            // parse
-            const int nb_hints = vbl_input ? plrat_reader_read_vbl_int(proof) : plrat_reader_read_int(proof);
-            read_hints(nb_hints);
-            // forward to checker
-            top_check_delete(buf_hints->data, nb_hints);
-            nb_deleted += nb_hints;
-
-        } else if (c == TRUSTED_CHK_TERMINATE) {
-            u8* sig = siphash_cls_digest(clause_hash);
-            // write in file for stage 2
-            long left_bytes = proof->end - proof->pos;
-            if (left_bytes > 0) fseek(proof->buffered_file, -left_bytes, SEEK_CUR);
-            
-            trusted_utils_write_sig(sig, proof->buffered_file);
-            break;
-
-        } else {
-            char errlog[512];
-            snprintf(errlog, 512, "Invalid directive! rank: %lu c: %d filesize:%lu", solver_rank, c, proof->total_bytes);
-            trusted_utils_log_err(errlog);
-            exit(1);
-        }
-
-        if (MALLOB_UNLIKELY(!top_check_valid())) {
-            if (!reported_error) {
-                trusted_utils_log_err(trusted_utils_msgstr);
-                reported_error = true;
-            }
-            exit(1);
-        }
-    }
     float elapsed = (float)(clock() - start) / CLOCKS_PER_SEC;
 
     if (top_check_validate_unsat(NULL)) {
