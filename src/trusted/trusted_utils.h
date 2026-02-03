@@ -21,6 +21,9 @@
 
 #define UNUSED(x) (void)(x) // for unusesd variables because of DIMPCHECK_WRITE_DIRECTIVES
 
+#define MIN(X,Y) (X < Y ? X : Y)
+#define MAX(X,Y) (X > Y ? X : Y)
+
 typedef unsigned long u64;
 typedef unsigned int u32;
 typedef unsigned char u8;

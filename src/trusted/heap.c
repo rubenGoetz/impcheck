@@ -8,9 +8,6 @@
 
 // ----- PRIVATE ----- //
 
-#define MIN(X,Y) (X < Y ? X : Y)
-#define MAX(X,Y) (X > Y ? X : Y)
-
 // returns index of left child only
 static u64 get_child_idx(u64 idx) {
     u64 child_idx = (idx * 2) + 1;
