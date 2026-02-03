@@ -22,6 +22,7 @@ void plrat_utils_log(const char* msg);
 void plrat_utils_log_err(const char* msg);
 
 bool plrat_utils_compare_lits(int* lits1, int* lits2, int nb_lits1, int nb_lits2);
+bool plrat_utils_compare_semi_sorted_lits(int* sorted_lits, int* unsorted_lits, int nb_sorted, int nb_unsorted);
 
 void plrat_utils_rank_to_2d(u64 rank, u64 n, u64* x, u64* y);
 
@@ -32,3 +33,7 @@ u64 plrat_utils_rank_to_x(u64 rank, u64 n);
 u64 plrat_utils_rank_to_y(u64 rank, u64 n);
 
 u64 plrat_swap_endianess(u64 value);
+
+#ifdef UNIT_TEST
+bool bin_search(int* a, int elem, int start, int end);
+#endif

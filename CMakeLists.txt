@@ -180,6 +180,13 @@ add_executable(test_merge_buffer
     test/test.c 
     test/test_merge_buffer.c)
 
+add_executable(test_plrat_utils
+    src/trusted/trusted_utils.c
+    src/trusted/plrat_utils.c
+    test/test.c
+    test/test_plrat_utils.c)
+target_compile_definitions(test_plrat_utils PRIVATE UNIT_TEST)
+
 add_executable(plrat_proxy_to_txt
     src/trusted/trusted_utils.c
     src/trusted/clause_flat.c
