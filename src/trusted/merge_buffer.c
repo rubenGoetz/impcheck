@@ -3,6 +3,17 @@
 
 #include "merge_buffer.h"
 
+static void resize_data(struct merge_buffer* buffer) {
+    // Unit clause has size sizeof(id + nb_lits + lit) = 4B + 2B + 2B = 8B
+    // => buffer can contain at most capacity / 8 Byte clauses
+    u64 max_size = buffer->capacity / 8;
+    u64 new_data_size = buffer->data_size * 1.5;
+    if (new_data_size == buffer->data_size)
+        new_data_size = new_data_size + 1;
+    buffer->data_size = MIN(new_data_size, max_size);
+    buffer->data = (clause_ptr*)trusted_utils_realloc(buffer->data, sizeof(clause_ptr) * buffer->data_size);
+}
+
 struct merge_buffer* merge_buffer_init(u64 capacity, char* file_name) {
     struct merge_buffer* buffer = (struct merge_buffer*)trusted_utils_malloc(sizeof(struct merge_buffer));
     if (file_name)
@@ -11,7 +22,9 @@ struct merge_buffer* merge_buffer_init(u64 capacity, char* file_name) {
         buffer->file = NULL;
     buffer->capacity = capacity;
     buffer->size = 0;
-    buffer->data = (clause_ptr*)trusted_utils_calloc(capacity / 8, sizeof(clause_ptr));
+    // start with 1/100 of possible clause count in buffer
+    buffer->data_size = MAX(capacity / 800, 1);
+    buffer->data = (clause_ptr*)trusted_utils_calloc(buffer->data_size, sizeof(clause_ptr));
     buffer->start_idx = 0;
     buffer->end_idx = 0;
     buffer->eof = false;
@@ -76,6 +89,10 @@ int merge_buffer_fill(struct merge_buffer* buffer) {
         trusted_utils_read_ints(get_clause_lits(c), nb_lits, buffer->file);
         buffer->data[buffer->end_idx++] = c;
         buffer->size += CLAUSE_SIZE(nb_lits);
+
+        if (buffer->end_idx >= buffer->data_size)
+            resize_data(buffer);
+
     }
 
     return 0;

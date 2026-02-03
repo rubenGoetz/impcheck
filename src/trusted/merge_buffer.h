@@ -11,6 +11,7 @@ struct merge_buffer {
     u64 size;
     u64 start_idx;
     u64 end_idx;
+    u64 data_size;
     clause_ptr* data;
     bool eof;
 };
