@@ -9,6 +9,7 @@ struct clause_heap {
     u64 capacity;
     u64 size;
     u64 element_count;
+    u64 data_size;
     clause_ptr* data;
 };
 

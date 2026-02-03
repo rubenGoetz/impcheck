@@ -8,6 +8,9 @@
 
 // ----- PRIVATE ----- //
 
+#define MIN(X,Y) (X < Y ? X : Y)
+#define MAX(X,Y) (X > Y ? X : Y)
+
 // returns index of left child only
 static u64 get_child_idx(u64 idx) {
     u64 child_idx = (idx * 2) + 1;
@@ -21,6 +24,17 @@ static u64 get_parent_idx(u64 idx) {
     return parent_idx;
 }
 
+static void resize_data(struct clause_heap* heap) {
+    // Unit clause has size sizeof(id + nb_lits + lit) = 4B + 2B + 2B = 8B
+    // => heap can contain at most capacity / 8 Byte clauses
+    u64 max_size = heap->capacity / 8;
+    u64 new_data_size = heap->data_size * 1.5;
+    if (new_data_size == heap->data_size)
+        new_data_size = new_data_size + 1;
+    heap->data_size = MIN(new_data_size, max_size);
+    heap->data = (clause_ptr*)trusted_utils_realloc(heap->data, sizeof(clause_ptr) * heap->data_size);
+}
+
 // ----- PUBLIC ----- //
 
 struct clause_heap* heap_init(u64 capacity) {
@@ -31,10 +45,9 @@ struct clause_heap* heap_init(u64 capacity) {
     heap->capacity = capacity;
     // count of elements in heap
     heap->element_count = 0;
-    // Unit clause has size sizeof(id + nb_lits + lit) = 4B + 2B + 2B = 8B
-    // => can contain at most capacity / 8 Byte clauses
-    // TODO: make variable size?
-    heap->data = (clause_ptr*)trusted_utils_calloc(capacity / 8, sizeof(clause_ptr));
+    // start with 1/100 of possible clause count in heap
+    heap->data_size = MAX(capacity / 800, 1);
+    heap->data = (clause_ptr*)trusted_utils_calloc(heap->data_size, sizeof(clause_ptr));
     return heap;
 }
 
@@ -104,6 +117,8 @@ Return 0 if successfull and 1 if clause could not be inserted.
 int heap_insert(struct clause_heap* heap, clause_ptr clause) {
     if (heap->size + get_clause_size(clause) > heap->capacity)
         return 1;
+    if (heap->element_count + 1 >= heap->data_size)
+        resize_data(heap);
     clause_ptr* data = heap->data;
 
     data[heap->element_count] = clause;

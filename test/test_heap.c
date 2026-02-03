@@ -25,6 +25,7 @@ static void build_heap() {
     printf("   * insert clauses\n");
     u64 old_size = 0;
     u64 old_count = 0;
+    u64 initial_data_size = heap->data_size;
     for (u64 i = 0; i < NUM_CLAUSES; i++) {
         int res = heap_insert(heap, clauses[i]);
         do_assert(!res);
@@ -36,6 +37,9 @@ static void build_heap() {
     do_assert(heap_insert(heap, bonus_clause));
     do_assert(heap->size == old_size);
     do_assert(heap->element_count == old_count);
+
+    // assert that heap->data has grown succesfully
+    do_assert(initial_data_size < heap->data_size);
 }
 
 static void check_size() {
