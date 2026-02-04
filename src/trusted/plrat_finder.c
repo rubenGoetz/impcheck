@@ -40,7 +40,7 @@ struct plrat_reader* proof_reader;
 
 struct int_vec* proof_lits;
 
-bool vbl_input;
+bool palrup_binary;
 
 void read_literals(int nb_lits) {
     int_vec_reserve(proof_lits, nb_lits);
@@ -48,7 +48,7 @@ void read_literals(int nb_lits) {
 }
 
 void skip_proof_header() {
-    if (vbl_input)
+    if (palrup_binary)
         return;
 
     char c = '\0';
@@ -326,9 +326,9 @@ void parse_legacy(bool* found_T) {
     }
 }
 
-void plrat_finder_init(const char* main_path, const char* imports_path, unsigned long solver_id, unsigned long num_solvers, unsigned long redistribution_strategy, unsigned long read_buffer_size, bool use_vbl_input) {
+void plrat_finder_init(const char* main_path, const char* imports_path, unsigned long solver_id, unsigned long num_solvers, unsigned long redistribution_strategy, unsigned long read_buffer_size, bool use_palrup_binary) {
     redist_strat = redistribution_strategy;
-    vbl_input = use_vbl_input;
+    palrup_binary = use_palrup_binary;
     n_solvers = num_solvers;
     double d_num = (double)n_solvers;
     root_n = sqrt(d_num);
@@ -396,7 +396,7 @@ void plrat_finder_run() {
 
         // if (current_ID == empty_ID) break;
 
-        if (vbl_input)
+        if (palrup_binary)
             parse(&found_T);
         else
             parse_legacy(&found_T);

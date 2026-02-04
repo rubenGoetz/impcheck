@@ -46,7 +46,7 @@ char proof_path_in[512];
 char redestribute_path_out[512];
 
 bool do_logging = true;
-bool vbl_input;
+bool palrup_binary;
 
 // Buffering.
 signature buf_sig;
@@ -64,7 +64,7 @@ void read_hints(int nb_hints) {
 }
 
 void skip_proof_header() {
-    if (vbl_input)
+    if (palrup_binary)
         return;
 
     char c = '\0';
@@ -313,9 +313,9 @@ void parse_legacy(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
     }
 }
 
-void pc_init(const char* formula_path, const char* proofs_path_in, const char* proofs_path_out, unsigned long solver_id, unsigned long num_solvers, unsigned long redistribution_strategy, unsigned long read_buffer_size, bool use_vbl_input) {
+void pc_init(const char* formula_path, const char* proofs_path_in, const char* proofs_path_out, unsigned long solver_id, unsigned long num_solvers, unsigned long redistribution_strategy, unsigned long read_buffer_size, bool use_palrup_binary) {
     FILE* formular;
-    vbl_input = use_vbl_input;
+    palrup_binary = use_palrup_binary;
     clause_hash = siphash_cls_init(SECRET_KEY);
     snprintf(proof_path_in, 512, "%s/%lu/out.palrup", proofs_path_in, solver_id);
     snprintf(redestribute_path_out, 512, "%s", proofs_path_out);
@@ -366,7 +366,7 @@ int pc_run() {
     clock_t start = clock();
     u64 nb_produced = 0, nb_imported = 0, nb_deleted = 0;
 
-    if (vbl_input)
+    if (palrup_binary)
         parse(&nb_produced, &nb_imported, &nb_deleted);
     else
         parse_legacy(&nb_produced, &nb_imported, &nb_deleted);
