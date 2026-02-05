@@ -1,0 +1,210 @@
+#!bin/bash
+
+##########################
+## necessary parameters ##
+##########################
+proof_dir_in=""
+proof_dir_out=""
+num_solvers=1
+formula_path=""
+
+
+#########################
+## optional parameters ##
+#########################
+palrup_binary=1
+processors=1
+run_mallob=""
+buffer_size=1024
+cleanup=0
+log_dir=""
+
+####################
+## optional flags ##
+####################
+quiet=0
+
+## parse input options
+for param in "$@"; do
+    case $param in
+        # necessary parameters
+        -proof-dir=*)
+            proof_dir_in=${param#*=}
+            proof_dir_out=${param#*=}
+            ;;
+        -proof-dir-in=*)
+            proof_dir_in=${param#*=};;
+        -proof-dir-out=*)
+            proof_dir_out=${param#*=};;
+        -formula-path=*)
+            formula_path=${param#*=};;
+        -num-solvers=*)
+            num_solvers=${param#*=};;
+
+        # optional parameters
+        -palrup-binary=*)
+            palrup_binary=${param#*=};;
+        -run-mallob=*)
+            run_mallob=${param#*=};;
+        -processors=*)
+            processors=${param#*=};;
+        -log-dir=*)
+            log_dir=${param#*=};;
+        -c=*|-cleanup=*)
+            cleanup=${param#*=};;
+        
+        # optional flags
+        -q|-quiet)
+            quiet=1;;
+
+        # default
+        *);;
+    esac
+done
+
+# log function to consider quiet option
+log_new_line=1
+cond_log() {
+    if [[ $quiet == 0 ]]; then
+        if [[ $log_new_line == 0 ]]; then
+            echo $2 "$1"
+        else
+            echo $2 "** $1"
+        fi
+
+        if [[ $2 == "-n" ]]; then 
+            log_new_line=0
+        else
+            log_new_line=1
+        fi
+    fi 
+}
+
+err_log() {
+    echo "[ERROR] $1"
+    exit 1
+}
+
+## init
+# set working directory to impcheck/
+impcheck_dir=$(realpath $(dirname "$0")/../..)
+cd "$impcheck_dir"
+cond_log "set working dir to $impcheck_dir"
+
+# set log_dir
+if [[ ! $log_dir ]]; then log_dir=$proof_dir_out; fi
+
+## run Mallob
+if [[ $run_mallob ]]; then
+
+    # check Mallobs thread setup
+    if [[ $(( ($num_solvers / $processors) * $processors )) != $num_solvers ]]; then
+        err_log "Faulty Mallob thread setup!"
+    fi
+
+    cd $run_mallob
+    cond_log "run MallobSat at $run_mallob .. " -n
+
+    msg=$(RDMAV_FORK_SAFE=1; mpirun -np $processors build/mallob \
+            -mono=$formula_path -proof-dir=$impcheck_dir/$proof_dir_in -palrup=1 -v=0 \
+            -palrup-binary=$palrup_binary -t=$(($num_solvers / $processors)) -log=$impcheck_dir/$log_dir/logs_mallob)
+    res=$?
+
+    if [[ $res == 0 ]]; then
+        cond_log "DONE"
+    else
+        err_log "Mallob failed with exit code $res and error message: $msg"
+    fi
+
+    cd $impcheck_dir
+    mv $proof_dir_in/proof#1/* $impcheck_dir/$proof_dir_in/
+    rm -r $proof_dir_in/proof#1
+fi
+
+## begin PalRup checker
+cond_log "Run PalRup checker:"
+
+if [[ ! -d $proof_dir_out ]]; then 
+    mkdir $proof_dir_out;
+    for i in $(seq 0 $(($num_solvers-1))); do mkdir $proof_dir_out/$i; done
+fi
+
+## run first pass
+cond_log "run first pass.. " -n
+
+msg=$(bash ./scripts/run/run_first_pass.sh \
+        -formula-path=$formula_path -proof-in=$proof_dir_in -proof-out=$proof_dir_out \
+        -num-solvers=$num_solvers -palrup-binary=$palrup_binary -buffer-size=$buffer_size \
+        -log-dir=$log_dir)
+res=$?
+
+if [[ $res == 0 ]]; then
+    cond_log "DONE"
+else
+    cond_log "FAILED"
+    err_log "First pass failed with exit code $res and error message: $msg"
+fi
+
+## run reroute
+cond_log "run reroute.. " -n
+
+msg=$(bash ./scripts/run/run_reroute.sh \
+        -proofs-path=$proof_dir_out -num-solvers=$num_solvers \
+        -buffer-size=$buffer_size -log-dir=$log_dir)
+res=$?
+
+if [[ $res == 0 ]]; then
+    cond_log "DONE"
+else
+    cond_log "FAILED"
+    err_log "Reroute failed with exit code $res and error message: $msg"
+fi
+
+## run last pass
+cond_log "run last pass.. " -n
+
+msg=$(bash ./scripts/run/run_last_pass.sh \
+        -formula-path=$formula_path -proof-palrup=$proof_dir_in -proof-import=$proof_dir_out \
+        -num-solvers=$num_solvers -palrup-binary=$palrup_binary -read-buffer-KB=$buffer_size \
+        -log-dir=$log_dir)
+res=$?
+
+if [[ $res == 0 ]]; then
+    cond_log "DONE"
+else
+    cond_log "FAILED"
+    err_log "Last pass failed with exit code $res and error message: $msg"
+fi
+
+## assert proof was checked correctly
+cond_log "Validate checker was successfull.. " -n
+
+msg=$(bash ./scripts/run/validate_proof_check.sh \
+        -proof-dir=$proof_dir_out -num-solvers=$num_solvers)
+res=$?
+
+if [[ $res == 0 ]]; then
+    cond_log "DONE"
+else
+    cond_log "FAILED"
+    err_log "Assertion of proof checker failed with exit code $res and error message: $msg"
+fi
+
+echo "PROOF VALIDATED"
+
+## cleanup
+if [[ $cleanup > 1 ]]; then
+    cond_log "clean up written files.. " -n
+
+    if [[ $cleanup == 2 ]]; then
+        msg=$(bash ./scripts/run/cleanup.sh -proof-dir-in=$proof_dir_in -proof-dir-out=$proof_dir_out -delete-all)
+    elif [[ $cleanup == 1 ]]; then 
+        # delete dir containing communication files if it differs from the original PalRup dir
+        if [[ $proof_dir_in != $proof_dir_out ]]; then del_proof_out="-del-proof-out"; fi
+        msg=$(bash ./scripts/run/cleanup.sh -proof-dir-in=$proof_dir_in -proof-dir-out=$proof_dir_out $del_proof_out)
+    fi
+
+    cond_log "DONE"
+else
+    cond_log "to clean up any written files run sripts/run/cleanup_proof_dir.sh"
+fi
