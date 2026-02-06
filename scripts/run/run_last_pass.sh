@@ -48,7 +48,11 @@ for solverid in $(seq 0 $(($num_solvers-1))); do
     mkdir -p "$log_dir/#$solverid"
     if [[ -f "$log_dir/#$solverid/last_pass" ]]; then rm "$log_dir/#$solverid/last_pass"; fi
 
-    { time ./build/plrat_last_pass -formula-path=$formula_path -proofs-path=$proof_dir_palrup -imports-path=$proof_dir_import -num-solvers=$num_solvers -solver-id=$solverid -palrup-binary=$palrup_binary -read-buffer-KB=$buffer_size -redistribution-strategy=2; } 2> "$log_dir/#$solverid/last_pass" &
+    command time -p -o "$log_dir/#$solverid/last_pass" ./build/plrat_last_pass \
+        -formula-path=$formula_path -proofs-path=$proof_dir_palrup \
+        -imports-path=$proof_dir_import -num-solvers=$num_solvers \
+        -solver-id=$solverid -palrup-binary=$palrup_binary \
+        -read-buffer-KB=$buffer_size -redistribution-strategy=2 &
 done
 wait
 

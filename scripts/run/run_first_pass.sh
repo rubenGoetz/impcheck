@@ -50,11 +50,11 @@ for solverid in $(seq 0 $(($num_solvers-1))); do
     if [[ -f "$log_dir/#$solverid/first_pass" ]]; then rm "$log_dir/#$solverid/first_pass"; fi
 
     # redistribution-strategy=2 is currently the only one working
-    { time ./build/plrat_first_pass \
+    command time -p -o "$log_dir/#$solverid/first_pass" ./build/plrat_first_pass \
         -formula-path=$formula_path -proofs-path-in=$proof_dir_in \
         -proofs-path-out=$proof_dir_out -num-solvers=$num_solvers \
         -solver-id=$solverid -read-buffer-KB=$buffer_size -redistribution-strategy=2 \
-        -palrup-binary$palrup_binary; } 2> "$log_dir/#$solverid/first_pass" &
+        -palrup-binary$palrup_binary &
 done
 wait
 

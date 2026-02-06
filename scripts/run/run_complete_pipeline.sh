@@ -15,6 +15,7 @@ formula_path=""
 palrup_binary=1
 processors=1
 run_mallob=""
+mallob_timeout=300
 buffer_size=1024
 cleanup=0
 log_dir=""
@@ -46,6 +47,8 @@ for param in "$@"; do
             palrup_binary=${param#*=};;
         -run-mallob=*)
             run_mallob=${param#*=};;
+        -mallob-timeout=*)
+            mallob_timeout=${param#*=};;
         -processors=*)
             processors=${param#*=};;
         -log-dir=*)
@@ -96,18 +99,12 @@ if [[ ! $log_dir ]]; then log_dir=$proof_dir_out; fi
 
 ## run Mallob
 if [[ $run_mallob ]]; then
-
-    # check Mallobs thread setup
-    if [[ $(( ($num_solvers / $processors) * $processors )) != $num_solvers ]]; then
-        err_log "Faulty Mallob thread setup!"
-    fi
-
-    cd $run_mallob
     cond_log "run MallobSat at $run_mallob .. " -n
 
-    msg=$(RDMAV_FORK_SAFE=1; mpirun -np $processors build/mallob \
-            -mono=$formula_path -proof-dir=$impcheck_dir/$proof_dir_in -palrup=1 -v=0 \
-            -palrup-binary=$palrup_binary -t=$(($num_solvers / $processors)) -log=$impcheck_dir/$log_dir/logs_mallob)
+    msg=$(bash ./scripts/run/run_mallob.sh \
+            -num-solvers=$num_solvers -mallob-dir=$run_mallob -formula=$formula_path \
+            -proof=$proof_dir_in -processors=$processors -timeout=$mallob_timeout \
+            -palrup-binary=$palrup_binary -log-dir=$log_dir/mallob)
     res=$?
 
     if [[ $res == 0 ]]; then
@@ -115,10 +112,6 @@ if [[ $run_mallob ]]; then
     else
         err_log "Mallob failed with exit code $res and error message: $msg"
     fi
-
-    cd $impcheck_dir
-    mv $proof_dir_in/proof#1/* $impcheck_dir/$proof_dir_in/
-    rm -r $proof_dir_in/proof#1
 fi
 
 ## begin PalRup checker

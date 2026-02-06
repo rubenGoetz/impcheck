@@ -52,7 +52,9 @@ for solverid in $(seq 0 $(($comm_size-1))); do
     mkdir -p "$log_dir/#$solverid"
     if [[ -f "$log_dir/#$solverid/reroute" ]]; then rm "$log_dir/#$solverid/reroute"; fi
 
-    { time ./build/plrat_reroute -proofs-path=$proofs_path -num-solvers=$num_solvers -solver-id=$solverid -read-buffer-KB=$buffer_size -redistribution-strategy=2; } 2> "$log_dir/#$solverid/reroute" &
+    command time -p -o "$log_dir/#$solverid/reroute" ./build/plrat_reroute \
+        -proofs-path=$proofs_path -num-solvers=$num_solvers -solver-id=$solverid \
+        -read-buffer-KB=$buffer_size -redistribution-strategy=2 &
 done
 wait
 
