@@ -58,19 +58,29 @@ cd $mallob_dir
 RDMAV_FORK_SAFE=1
 
 if [[ $log_dir ]]; then
-    if [[ ! -d $return_dir/$log_dir ]]; then mkdir $return_dir/$log_dir; fi
+    mkdir -p $return_dir/$log_dir
     mpirun -np $processors build/mallob \
             -mono=$formula_path -proof-dir=$return_dir/$proof_dir \
             -palrup=1 -v=4 -palrup-binary=$palrup_binary -t=$(($num_solvers / $processors)) \
             -log=$return_dir/$log_dir -T=$(($timeout+30)) > $return_dir/$log_dir/std.out
+
+    res=$(cat $return_dir/$log_dir/std.out | grep -E "s UNSATISFIABLE")
 else
-    mpirun -np $processors build/mallob \
+    res=$(mpirun -np $processors build/mallob \
             -mono=$formula_path -proof-dir=$return_dir/$proof_dir \
             -palrup=1 -v=0 -palrup-binary=$palrup_binary -t=$(($num_solvers / $processors)) \
-            -T=$(($timeout+30))
+            -T=$(($timeout+30)) | grep -E "s UNSATISFIABLE")
 fi
 
 # clean up proof hierarchy
 cd $return_dir
 mv $proof_dir/proof#1/* $return_dir/$proof_dir/
 rm -r $proof_dir/proof#1
+
+# report success (or lack thereof)
+if [[ $res ]]; then
+    exit 0
+else
+    echo "Mallob was not able to generate proof of UNSAT"
+    exit 1
+fi

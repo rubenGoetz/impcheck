@@ -110,6 +110,7 @@ if [[ $run_mallob ]]; then
     if [[ $res == 0 ]]; then
         cond_log "DONE"
     else
+        cond_log "FAILED"
         err_log "Mallob failed with exit code $res and error message: $msg"
     fi
 fi
