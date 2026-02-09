@@ -16,7 +16,7 @@ palrup_binary=1
 processors=1
 run_mallob=""
 mallob_timeout=300
-buffer_size=1024
+buffer_size=4096
 cleanup=0
 log_dir=""
 
@@ -24,6 +24,30 @@ log_dir=""
 ## optional flags ##
 ####################
 quiet=0
+
+# log function to consider quiet option
+log_new_line=1
+cond_log() {
+    if [[ $quiet == 0 ]]; then
+        if [[ $log_new_line == 0 ]]; then
+            echo $2 "$1"
+        else
+            echo $2 "** $1"
+        fi
+
+        if [[ $2 == "-n" ]]; then 
+            log_new_line=0
+        else
+            log_new_line=1
+        fi
+    fi 
+}
+
+# handle errors
+err_log() {
+    echo "[ERROR] $1"
+    exit 1
+}
 
 ## parse input options
 for param in "$@"; do
@@ -53,6 +77,8 @@ for param in "$@"; do
             processors=${param#*=};;
         -log-dir=*)
             log_dir=${param#*=};;
+        -buffer-size=*)
+            buffer_size=${param#*=};;
         -c=*|-cleanup=*)
             cleanup=${param#*=};;
         
@@ -61,32 +87,10 @@ for param in "$@"; do
             quiet=1;;
 
         # default
-        *);;
+        *)
+            err_log "Unknown parameter $param";;
     esac
 done
-
-# log function to consider quiet option
-log_new_line=1
-cond_log() {
-    if [[ $quiet == 0 ]]; then
-        if [[ $log_new_line == 0 ]]; then
-            echo $2 "$1"
-        else
-            echo $2 "** $1"
-        fi
-
-        if [[ $2 == "-n" ]]; then 
-            log_new_line=0
-        else
-            log_new_line=1
-        fi
-    fi 
-}
-
-err_log() {
-    echo "[ERROR] $1"
-    exit 1
-}
 
 ## init
 # set working directory to impcheck/
@@ -132,7 +136,10 @@ msg=$(bash ./scripts/run/run_first_pass.sh \
         -log-dir=$log_dir)
 res=$?
 
-if [[ $res == 0 ]]; then
+if [[ $(echo "$msg" | grep -E "\[ERROR\]") ]]; then
+    cond_log "FAILED"
+    err_log "First pass encountered runtime error with message: $msg"
+elif [[ $res == 0 ]]; then
     cond_log "DONE"
 else
     cond_log "FAILED"
@@ -147,7 +154,10 @@ msg=$(bash ./scripts/run/run_reroute.sh \
         -buffer-size=$buffer_size -log-dir=$log_dir)
 res=$?
 
-if [[ $res == 0 ]]; then
+if [[ $(echo "$msg" | grep -E "\[ERROR\]") ]]; then
+    cond_log "FAILED"
+    err_log "Reroute encountered runtime error with message: $msg"
+elif [[ $res == 0 ]]; then
     cond_log "DONE"
 else
     cond_log "FAILED"
@@ -163,7 +173,10 @@ msg=$(bash ./scripts/run/run_last_pass.sh \
         -log-dir=$log_dir)
 res=$?
 
-if [[ $res == 0 ]]; then
+if [[ $(echo "$msg" | grep -E "\[ERROR\]") ]]; then
+    cond_log "FAILED"
+    err_log "Last pass encountered runtime error with message: $msg"
+elif [[ $res == 0 ]]; then
     cond_log "DONE"
 else
     cond_log "FAILED"

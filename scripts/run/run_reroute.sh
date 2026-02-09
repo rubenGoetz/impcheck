@@ -4,7 +4,7 @@ proofs_path=""
 num_solvers=0
 
 log_dir=""
-buffer_size=1024
+buffer_size=4096
 
 for param in "$@"; do
     case $param in
@@ -21,7 +21,10 @@ for param in "$@"; do
             buffer_size=${param#*=};;
 
         # default
-        *);;
+        *)
+            echo "[ERROR] Unknown parameter $param"
+            exit 1
+            ;;
     esac
 done
 
