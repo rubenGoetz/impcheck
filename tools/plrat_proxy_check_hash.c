@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include "../src/trusted/trusted_utils.h"
 #include "../src/trusted/clause_flat.h"

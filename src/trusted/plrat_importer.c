@@ -151,8 +151,8 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
         // plrat_utils_log(ids_path);
         out_files[i] = fopen(ids_path, "wb+");
         if (!(out_files[i])) {
-            char msg[512];
-            snprintf(msg, 512, "out_files not created: %s\n", ids_path);
+            char msg[1048];
+            snprintf(msg, 1048, "out_files not created: %s\n", ids_path);
             plrat_utils_log_err(msg);
         }
         trusted_utils_write_int(0, out_files[i]);   // placeholder to insert number of clauses in file

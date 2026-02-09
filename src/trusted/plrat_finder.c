@@ -348,8 +348,8 @@ void plrat_finder_init(const char* main_path, const char* imports_path, unsigned
     my_proof = fopen(proof_path, "rb");
     FILE* finger_print = fopen(finger_print_path, "rb");
     if (!finger_print) {
-        char msg[1024];
-        snprintf(msg, 1024, "Can't open file %s", finger_print_path);
+        char msg[1040];
+        snprintf(msg, 1040, "Can't open file %s", finger_print_path);
         trusted_utils_log_err(msg);
     }
     trusted_utils_read_sig(sig_res_reported, finger_print);

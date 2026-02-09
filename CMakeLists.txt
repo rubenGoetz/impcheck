@@ -142,18 +142,24 @@ add_executable(test_full
 
 add_executable(test_flat_clause 
     src/trusted/trusted_utils.c 
+    src/writer.c
     src/trusted/clause_flat.c 
     test/test.c 
     test/test_clause_flat.c)
 
 add_executable(test_heap 
     src/trusted/trusted_utils.c 
+    src/writer.c
     src/trusted/clause_flat.c 
     src/trusted/heap.c 
     test/test.c 
     test/test_heap.c)
 
 add_executable(test_plrat_importer
+    src/writer.c
+    src/trusted/hash.c
+    src/trusted/lrat_check.c
+    src/trusted/siphash.c
     src/trusted/trusted_utils.c 
     src/trusted/clause_flat.c 
     src/trusted/heap.c 
@@ -165,23 +171,32 @@ add_executable(test_plrat_importer
     src/trusted/merge_buffer.c
     test/test.c
     test/test_plrat_importer.c)
+target_link_libraries(test_plrat_importer m)
 target_compile_definitions(test_plrat_importer PRIVATE UNIT_TEST)
 
 add_executable(test_plrat_file_reader
+    src/trusted/vectors.c
     src/trusted/trusted_utils.c 
+    src/writer.c
     src/trusted/plrat_file_reader.c
     test/test.c
     test/test_plrat_file_reader.c)
 
 add_executable(test_merge_buffer
     src/trusted/trusted_utils.c 
+    src/writer.c
     src/trusted/clause_flat.c 
     src/trusted/merge_buffer.c 
     test/test.c 
     test/test_merge_buffer.c)
 
 add_executable(test_plrat_utils
+    src/trusted/siphash.c
+    src/trusted/vectors.c
+    src/trusted/lrat_check.c
+    src/trusted/hash.c
     src/trusted/trusted_utils.c
+    src/writer.c
     src/trusted/plrat_utils.c
     test/test.c
     test/test_plrat_utils.c)
@@ -189,12 +204,14 @@ target_compile_definitions(test_plrat_utils PRIVATE UNIT_TEST)
 
 add_executable(plrat_proxy_to_txt
     src/trusted/trusted_utils.c
+    src/writer.c
     src/trusted/clause_flat.c
     src/trusted/vectors.c
     tools/plrat_proxy_to_txt.c)
 
 add_executable(plrat_proxy_check_hash
     src/trusted/trusted_utils.c
+    src/writer.c
     src/trusted/clause_flat.c
     src/trusted/commutative_sig.c
     src/trusted/vectors.c
@@ -203,6 +220,7 @@ add_executable(plrat_proxy_check_hash
 
 add_executable(vbl_plrat_to_txt
     src/trusted/trusted_utils.c
+    src/writer.c
     src/trusted/clause_flat.c
     src/trusted/vectors.c
     src/trusted/plrat_file_reader.c

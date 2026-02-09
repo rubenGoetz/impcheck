@@ -154,8 +154,8 @@ void parse(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
             u8* sig = siphash_cls_digest(clause_hash);
 
             // write in new file for stage 2
-            char finger_print_path[512];
-            snprintf(finger_print_path, 512, "%s.hash", proof_path_in);
+            char finger_print_path[517];
+            snprintf(finger_print_path, 517, "%s.hash", proof_path_in);
             FILE* finger_print = fopen(finger_print_path, "wb");
             if (!finger_print) {
                 char msg[1024];
@@ -321,8 +321,8 @@ void pc_init(const char* formula_path, const char* proofs_path_in, const char* p
     snprintf(redestribute_path_out, 512, "%s", proofs_path_out);
 
     if (access(proof_path_in, F_OK) != 0) {
-        char log_str[512];
-        snprintf(log_str, 512, "proof_path_in does not exist. Creating it: %s", proof_path_in);
+        char log_str[1024];
+        snprintf(log_str, 1024, "proof_path_in does not exist. Creating it: %s", proof_path_in);
         plrat_utils_log(log_str);
         // file doesn't exist
         // create placeholder file containing only 0
@@ -374,11 +374,12 @@ int pc_run() {
     float elapsed = (float)(clock() - start) / CLOCKS_PER_SEC;
 
     if (top_check_validate_unsat(NULL)) {
-        char unsat_folder[512];
-        snprintf(unsat_folder, 512, "%s/.unsat_found", redestribute_path_out);
+        char unsat_folder[525];
+        snprintf(unsat_folder, 525, "%s/.unsat_found", redestribute_path_out);
         if (mkdir(unsat_folder, 0777) == 0) {
-            snprintf(unsat_folder, 512, "%s/%lu", unsat_folder, solver_rank);
-            mkdir(unsat_folder, 0777);
+            char unsat_folder_sub[545];
+            snprintf(unsat_folder_sub, 1024, "%s/%lu", unsat_folder, solver_rank);
+            mkdir(unsat_folder_sub, 0777);
         }
     }
     snprintf(trusted_utils_msgstr, 512, "rank: %lu cpu:%.3f prod:%lu imp:%lu del:%lu n_s:%lu", solver_rank, elapsed, nb_produced, nb_imported, nb_deleted, nb_solvers);
