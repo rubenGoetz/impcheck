@@ -122,11 +122,6 @@ fi
 ## begin PalRup checker
 cond_log "Run PalRup checker:"
 
-if [[ ! -d $proof_dir_out ]]; then 
-    mkdir $proof_dir_out;
-    for i in $(seq 0 $(($num_solvers-1))); do mkdir $proof_dir_out/$i; done
-fi
-
 ## run first pass
 cond_log "run first pass.. " -n
 

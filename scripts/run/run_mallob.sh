@@ -33,7 +33,10 @@ for param in "$@"; do
             log_dir=${param#*=};;
 
         # default
-        *);;
+        *)
+            echo "[ERROR] Unknown parameter $param"
+            exit 1
+            ;;
     esac
 done
 
@@ -60,14 +63,14 @@ RDMAV_FORK_SAFE=1
 if [[ $log_dir ]]; then
     mkdir -p $return_dir/$log_dir
     mpirun -np $processors build/mallob \
-            -mono=$formula_path -proof-dir=$return_dir/$proof_dir \
+            -mono=$return_dir/$formula_path -proof-dir=$return_dir/$proof_dir \
             -palrup=1 -v=4 -palrup-binary=$palrup_binary -t=$(($num_solvers / $processors)) \
             -log=$return_dir/$log_dir -T=$(($timeout+30)) > $return_dir/$log_dir/std.out
 
     res=$(cat $return_dir/$log_dir/std.out | grep -E "s UNSATISFIABLE")
 else
     res=$(mpirun -np $processors build/mallob \
-            -mono=$formula_path -proof-dir=$return_dir/$proof_dir \
+            -mono=$return_dir/$formula_path -proof-dir=$return_dir/$proof_dir \
             -palrup=1 -v=0 -palrup-binary=$palrup_binary -t=$(($num_solvers / $processors)) \
             -T=$(($timeout+30)) | grep -E "s UNSATISFIABLE")
 fi

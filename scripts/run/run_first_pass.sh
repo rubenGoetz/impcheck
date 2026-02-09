@@ -47,8 +47,11 @@ fi
 # set log_dir
 if [[ ! $log_dir ]]; then echo "if"; log_dir=$proof_dir_out; fi
 
+# prepare proof_dir_out
+for i in $(seq 0 $(($num_solvers-1))); do mkdir -p $proof_dir_out/$i; done
+
 for solverid in $(seq 0 $(($num_solvers-1))); do
-    #prepare log_dir
+    # prepare log_dir
     mkdir -p "$log_dir/#$solverid"
     if [[ -f "$log_dir/#$solverid/first_pass" ]]; then rm "$log_dir/#$solverid/first_pass"; fi
 
