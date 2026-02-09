@@ -169,7 +169,7 @@ cond_log "run last pass.. " -n
 
 msg=$(bash ./scripts/run/run_last_pass.sh \
         -formula-path=$formula_path -proof-palrup=$proof_dir_in -proof-import=$proof_dir_out \
-        -num-solvers=$num_solvers -palrup-binary=$palrup_binary -read-buffer-KB=$buffer_size \
+        -num-solvers=$num_solvers -palrup-binary=$palrup_binary -buffer-size=$buffer_size \
         -log-dir=$log_dir)
 res=$?
 
@@ -198,6 +198,12 @@ else
 fi
 
 echo "PROOF VALIDATED"
+
+## log used space
+mkdir -p "$log_dir/metadata"
+wc -c $proof_dir_in/*/*.palrup >> "$log_dir/metadata/palrup_proof"
+wc -c $proof_dir_out/*/*.palrup_proxy >> "$log_dir/metadata/palrup_proxy"
+wc -c $proof_dir_out/*/*.palrup_import >> "$log_dir/metadata/palrup_import"
 
 ## cleanup
 if [[ $cleanup > 1 ]]; then
