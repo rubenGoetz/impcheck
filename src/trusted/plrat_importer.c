@@ -87,7 +87,7 @@ static void write_clause_to_buffered_file(clause_ptr clause, FILE* write_ptr, st
 
         // couldn't make enough space for new clause
         if ((long)get_clause_size(clause) + ftell(write_ptr) < ftell(read_ptr)) {
-            trusted_utils_log_err("Could not create enough space while merging clauses into .plrat_proxy file");
+            trusted_utils_log_err("Could not create enough space while merging clauses into .palrup_proxy file");
             exit(1);
         }
     }
@@ -143,9 +143,9 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
         }
 
         if (redist_strat == 2) {
-            snprintf(ids_path, 1024, "%s/%lu.plrat_proxy", proof_folder, plrat_utils_rank_to_x(local_rank, comm_size));
+            snprintf(ids_path, 1024, "%s/%lu.palrup_proxy", proof_folder, plrat_utils_rank_to_x(local_rank, comm_size));
         } else {
-            snprintf(ids_path, 1024, "%s/%lu.plrat_import", proof_folder, local_rank);
+            snprintf(ids_path, 1024, "%s/%lu.palrup_import", proof_folder, local_rank);
         }
 
         // plrat_utils_log(ids_path);

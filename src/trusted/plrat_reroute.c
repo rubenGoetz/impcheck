@@ -96,7 +96,7 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
 
         snprintf(folder_path, 512, "%s/%lu", out_path, plrat_reroute_get_destination_rank(i));
         mkdir(folder_path, 0755);
-        snprintf(tmp_path, 1024, "%s/%lu.plrat_import", folder_path, plrat_utils_rank_to_y(local_rank, comm_size));
+        snprintf(tmp_path, 1024, "%s/%lu.palrup_import", folder_path, plrat_utils_rank_to_y(local_rank, comm_size));
         _bu_output_files[i] = fopen(tmp_path, "wb");
 
         if (!(_bu_output_files[i])) trusted_utils_exit_eof();
@@ -113,7 +113,7 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
     
     for (size_t i = 0; i < comm_size; i++) {
         file_paths[i] = trusted_utils_malloc(512);
-        snprintf(file_paths[i], 512, "%s/%lu/%lu.plrat_proxy", out_path, local_rank, i);
+        snprintf(file_paths[i], 512, "%s/%lu/%lu.palrup_proxy", out_path, local_rank, i);
         if (access(file_paths[i], F_OK) != 0) {
             // file doesn't exist
             // create placeholder file containing only 0

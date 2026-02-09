@@ -104,7 +104,7 @@ void plrat_rebuild_init(const char* main_path, unsigned long solver_rank, unsign
         char out_file_path[1024];
         snprintf(_bu_id_files_paths[i], 1024, "%s/%lu.plrat_ids_sorted", folder_path, i);
         snprintf(cls_file_path, 1024, "%s/%lu.plrat_clauses", folder_path, i);
-        snprintf(out_file_path, 1024, "%s/%lu.plrat_proxy", folder_path, i);
+        snprintf(out_file_path, 1024, "%s/%lu.palrup_proxy", folder_path, i);
 
         if (access(_bu_id_files_paths[i], F_OK) != 0) {
             // file doesn't exist

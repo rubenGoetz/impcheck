@@ -364,7 +364,7 @@ void plrat_finder_init(const char* main_path, const char* imports_path, unsigned
 
     for (size_t i = 0; i < comm_size; i++) {
         file_paths[i] = trusted_utils_malloc(768);
-        snprintf(file_paths[i], 768, "%s/%lu/%lu.plrat_import", imports_path, local_rank, i);
+        snprintf(file_paths[i], 768, "%s/%lu/%lu.palrup_import", imports_path, local_rank, i);
 
         import_check_hash[i] = siphash_cls_init(SECRET_KEY);
     }
