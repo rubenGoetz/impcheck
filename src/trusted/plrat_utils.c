@@ -146,8 +146,8 @@ unit_static bool bin_search(int* a, int elem, int start, int end) {
     // integer division rounds towards zero
     // => a[end] can never be reached
     // => use nb_elements as end
-    assert(start > 0);
-    assert(end > start);
+    assert(start >= 0);
+    assert(end >= start);
     int pos = (start + end) / 2;
     if (a[pos] == elem)
         return true;
