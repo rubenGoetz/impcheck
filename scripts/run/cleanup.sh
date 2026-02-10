@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 proof_dir_in=""
 proof_dir_out=""
@@ -46,24 +46,24 @@ fi
 echo "* clean up $proof_dir_out"
 
 if [[ $del_proof_out == 1 ]]; then
-    rm -r $proof_dir_out
+    rm -r -f $proof_dir_out
 else
     # remove success marker
-    rm -r $proof_dir_out/.unsat_found
-    rm -r $proof_dir_out/*/.check_ok
+    rm -r -f $proof_dir_out/.unsat_found
+    rm -r -f $proof_dir_out/*/.check_ok
 
     # remove temporary files used to check proof
-    rm $proof_dir_out/*/*_import
-    rm $proof_dir_out/*/*_proxy
+    rm -f $proof_dir_out/*/*_import
+    rm -f $proof_dir_out/*/*_proxy
 fi
 
 echo "* clean up $proof_dir_in"
 
 if [[ $del_proof_in == 1 ]]; then
-    rm -r $proof_dir_in
+    rm -r -f $proof_dir_in
 else
-    if [[ $del_palrup == 1 ]]; then rm $proof_dir_in/*/*.palrup; fi
-    rm $proof_dir_in/*/*.hash
+    if [[ $del_palrup == 1 ]]; then rm -f $proof_dir_in/*/*.palrup; fi
+    rm -f $proof_dir_in/*/*.hash
 fi
 
 echo "* finished cleanup"

@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 proofs_path=""
 num_solvers=0

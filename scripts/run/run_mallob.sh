@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 num_solvers=1
 mallob_dir=""
@@ -62,14 +62,14 @@ RDMAV_FORK_SAFE=1
 
 if [[ $log_dir ]]; then
     mkdir -p $return_dir/$log_dir
-    mpirun -np $processors build/mallob \
+    mpiexec -np $processors build/mallob \
             -mono=$return_dir/$formula_path -proof-dir=$return_dir/$proof_dir \
             -palrup=1 -v=4 -palrup-binary=$palrup_binary -t=$(($num_solvers / $processors)) \
             -log=$return_dir/$log_dir -T=$(($timeout+30)) > $return_dir/$log_dir/std.out
 
     res=$(cat $return_dir/$log_dir/std.out | grep -E "s UNSATISFIABLE")
 else
-    res=$(mpirun -np $processors build/mallob \
+    res=$(mpiexec -np $processors build/mallob \
             -mono=$return_dir/$formula_path -proof-dir=$return_dir/$proof_dir \
             -palrup=1 -v=0 -palrup-binary=$palrup_binary -t=$(($num_solvers / $processors)) \
             -T=$(($timeout+30)) | grep -E "s UNSATISFIABLE")

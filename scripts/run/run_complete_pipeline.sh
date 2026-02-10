@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 ##########################
 ## necessary parameters ##
@@ -25,6 +25,25 @@ log_dir=""
 ####################
 quiet=0
 
+# cleanup function
+run_cleanup() {
+    if [[ $cleanup > 1 ]]; then
+        cond_log "clean up written files.. " -n
+
+        if [[ $cleanup == 2 ]]; then
+            msg=$(bash ./scripts/run/cleanup.sh -proof-dir-in=$proof_dir_in -proof-dir-out=$proof_dir_out -delete-all)
+        elif [[ $cleanup == 1 ]]; then 
+            # delete dir containing communication files if it differs from the original PalRup dir
+            if [[ $proof_dir_in != $proof_dir_out ]]; then del_proof_out="-del-proof-out"; fi
+            msg=$(bash ./scripts/run/cleanup.sh -proof-dir-in=$proof_dir_in -proof-dir-out=$proof_dir_out $del_proof_out)
+        fi
+
+        cond_log "DONE"
+    else
+        cond_log "to clean up any written files run sripts/run/cleanup_proof_dir.sh"
+    fi
+}
+
 # log function to consider quiet option
 log_new_line=1
 cond_log() {
@@ -46,6 +65,7 @@ cond_log() {
 # handle errors
 err_log() {
     echo "[ERROR] $1"
+    run_cleanup
     exit 1
 }
 
@@ -201,18 +221,4 @@ wc -c $proof_dir_out/*/*.palrup_proxy >> "$log_dir/metadata/palrup_proxy"
 wc -c $proof_dir_out/*/*.palrup_import >> "$log_dir/metadata/palrup_import"
 
 ## cleanup
-if [[ $cleanup > 1 ]]; then
-    cond_log "clean up written files.. " -n
-
-    if [[ $cleanup == 2 ]]; then
-        msg=$(bash ./scripts/run/cleanup.sh -proof-dir-in=$proof_dir_in -proof-dir-out=$proof_dir_out -delete-all)
-    elif [[ $cleanup == 1 ]]; then 
-        # delete dir containing communication files if it differs from the original PalRup dir
-        if [[ $proof_dir_in != $proof_dir_out ]]; then del_proof_out="-del-proof-out"; fi
-        msg=$(bash ./scripts/run/cleanup.sh -proof-dir-in=$proof_dir_in -proof-dir-out=$proof_dir_out $del_proof_out)
-    fi
-
-    cond_log "DONE"
-else
-    cond_log "to clean up any written files run sripts/run/cleanup_proof_dir.sh"
-fi
+run_cleanup

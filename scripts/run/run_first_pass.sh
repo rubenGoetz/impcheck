@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 formula_path=""
 proof_dir_in=""
