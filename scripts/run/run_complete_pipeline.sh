@@ -120,6 +120,7 @@ cond_log "set working dir to $impcheck_dir"
 
 # set log_dir
 if [[ ! $log_dir ]]; then log_dir=$proof_dir_out; fi
+mkdir -p "$log_dir/metadata"
 
 ## run Mallob
 if [[ $run_mallob ]]; then
@@ -150,6 +151,7 @@ msg=$(bash ./scripts/run/run_first_pass.sh \
         -num-solvers=$num_solvers -palrup-binary=$palrup_binary -buffer-size=$buffer_size \
         -log-dir=$log_dir)
 res=$?
+echo $msg > $log_dir/metadata/first_pass.out
 
 if [[ $(echo "$msg" | grep -E "\[ERROR\]") ]]; then
     cond_log "FAILED"
@@ -168,6 +170,7 @@ msg=$(bash ./scripts/run/run_reroute.sh \
         -proofs-path=$proof_dir_out -num-solvers=$num_solvers \
         -buffer-size=$buffer_size -log-dir=$log_dir)
 res=$?
+echo $msg > $log_dir/metadata/reroute.out
 
 if [[ $(echo "$msg" | grep -E "\[ERROR\]") ]]; then
     cond_log "FAILED"
@@ -187,6 +190,7 @@ msg=$(bash ./scripts/run/run_last_pass.sh \
         -num-solvers=$num_solvers -palrup-binary=$palrup_binary -buffer-size=$buffer_size \
         -log-dir=$log_dir)
 res=$?
+echo $msg > $log_dir/metadata/last_pass.out
 
 if [[ $(echo "$msg" | grep -E "\[ERROR\]") ]]; then
     cond_log "FAILED"
@@ -215,10 +219,9 @@ fi
 echo "PROOF VALIDATED"
 
 ## log used space
-mkdir -p "$log_dir/metadata"
-wc -c $proof_dir_in/*/*.palrup >> "$log_dir/metadata/palrup_proof"
-wc -c $proof_dir_out/*/*.palrup_proxy >> "$log_dir/metadata/palrup_proxy"
-wc -c $proof_dir_out/*/*.palrup_import >> "$log_dir/metadata/palrup_import"
+wc -c $proof_dir_in/*/*.palrup >> "$log_dir/metadata/palrup_proof.filesize"
+wc -c $proof_dir_out/*/*.palrup_proxy >> "$log_dir/metadata/palrup_proxy.filesize"
+wc -c $proof_dir_out/*/*.palrup_import >> "$log_dir/metadata/palrup_import.filesize"
 
 ## cleanup
 run_cleanup

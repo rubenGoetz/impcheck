@@ -59,20 +59,21 @@ cd $mallob_dir
 
 # run mallob with timeout
 RDMAV_FORK_SAFE=1
+t=$(($num_solvers / $processors))
 
 if [[ $log_dir ]]; then
     mkdir -p $return_dir/$log_dir
-    mpiexec -np $processors build/mallob \
+    mpiexec -np $processors --bind-to core --map-by ppr:${processors}:node:pe=$t build/mallob \
             -mono=$return_dir/$formula_path -proof-dir=$return_dir/$proof_dir \
-            -palrup=1 -v=4 -palrup-binary=$palrup_binary -t=$(($num_solvers / $processors)) \
-            -log=$return_dir/$log_dir -T=$(($timeout+30)) > $return_dir/$log_dir/std.out
+            -palrup=1 -v=4 -palrup-binary=$palrup_binary -t=$t \
+            -log=$return_dir/$log_dir -jwl=$timeout -T=$(($timeout+30)) > $return_dir/$log_dir/std.out
 
     res=$(cat $return_dir/$log_dir/std.out | grep -E "s UNSATISFIABLE")
 else
-    res=$(mpiexec -np $processors build/mallob \
+    res=$(mpiexec -np $num_solvers --bind-to core --map-by ppr:${processors}:node:pe=$t build/mallob \
             -mono=$return_dir/$formula_path -proof-dir=$return_dir/$proof_dir \
-            -palrup=1 -v=0 -palrup-binary=$palrup_binary -t=$(($num_solvers / $processors)) \
-            -T=$(($timeout+30)) | grep -E "s UNSATISFIABLE")
+            -palrup=1 -v=4 -palrup-binary=$palrup_binary -t=$t \
+            -log=$return_dir/$log_dir -jwl=$timeout -T=$(($timeout+30)) | grep -E "s UNSATISFIABLE")
 fi
 
 # clean up proof hierarchy
