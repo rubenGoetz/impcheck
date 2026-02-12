@@ -27,6 +27,13 @@ quiet=0
 
 # cleanup function
 run_cleanup() {
+    # allow cleanup overwrite
+    if [[ $1 ]]; then cleanup=$1; fi
+
+    wc -c $proof_dir_in/*/*.palrup >> "$log_dir/metadata/palrup_proof.filesize"
+    wc -c $proof_dir_out/*/*.palrup_proxy >> "$log_dir/metadata/palrup_proxy.filesize"
+    wc -c $proof_dir_out/*/*.palrup_import >> "$log_dir/metadata/palrup_import.filesize"
+
     if [[ $cleanup > 1 ]]; then
         cond_log "clean up written files.. " -n
 
@@ -65,7 +72,7 @@ cond_log() {
 # handle errors
 err_log() {
     echo "[ERROR] $1"
-    run_cleanup
+    run_cleanup 0
     exit 1
 }
 
@@ -218,10 +225,6 @@ fi
 
 echo "PROOF VALIDATED"
 
-## log used space
-wc -c $proof_dir_in/*/*.palrup >> "$log_dir/metadata/palrup_proof.filesize"
-wc -c $proof_dir_out/*/*.palrup_proxy >> "$log_dir/metadata/palrup_proxy.filesize"
-wc -c $proof_dir_out/*/*.palrup_import >> "$log_dir/metadata/palrup_import.filesize"
-
 ## cleanup
+log_space_usage
 run_cleanup
