@@ -2,13 +2,13 @@
 
 # spack env activate mallob
 
-benchmark_instances_path="../short_benchmarks"
-proofs_dir_in="/local_scratch/proof_palrup"
-proofs_dir_out="/local_scratch/proof_working"
+benchmark_instances_path="../benchmarks"
+proofs_dir_in="/local_scratch/palrup/proof_palrup"
+proofs_dir_out="/local_scratch/palrup/proof_working"
 num_solvers=16
 processors=2
 log_dir="proof_log"
-mallob_path="../mallob_clean/mallob"
+mallob_path="../mallob"
 
 for benchmark in $(ls $benchmark_instances_path); do
     
