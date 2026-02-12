@@ -57,28 +57,33 @@ fi
 return_dir=$PWD
 cd $mallob_dir
 
+# append $return_dir if paths are given relative
+if [[ ${log_dir:0:1} != "/" ]] log_dir=$return_dir/$log_dir
+if [[ ${$formula_path:0:1} != "/" ]] formula_path=$return_dir/$formula_path
+if [[ ${$proof_dir:0:1} != "/" ]] proof_dir=$return_dir/$proof_dir
+
 # run mallob with timeout
 RDMAV_FORK_SAFE=1
 t=$(($num_solvers / $processors))
 
 if [[ $log_dir ]]; then
-    mkdir -p $return_dir/$log_dir
+    mkdir -p $log_dir
     mpiexec -np $processors --bind-to core --map-by ppr:${processors}:node:pe=$t build/mallob \
-            -mono=$return_dir/$formula_path -proof-dir=$return_dir/$proof_dir \
+            -mono=$formula_path -proof-dir=$proof_dir \
             -palrup=1 -v=4 -palrup-binary=$palrup_binary -t=$t \
-            -log=$return_dir/$log_dir -jwl=$timeout -T=$(($timeout+30)) > $return_dir/$log_dir/std.out
+            -log=$log_dir -jwl=$timeout -T=$(($timeout+30)) > $log_dir/std.out
 
-    res=$(cat $return_dir/$log_dir/std.out | grep -E "s UNSATISFIABLE")
+    res=$(cat $log_dir/std.out | grep -E "s UNSATISFIABLE")
 else
     res=$(mpiexec -np $num_solvers --bind-to core --map-by ppr:${processors}:node:pe=$t build/mallob \
-            -mono=$return_dir/$formula_path -proof-dir=$return_dir/$proof_dir \
+            -mono=$formula_path -proof-dir=$proof_dir \
             -palrup=1 -v=4 -palrup-binary=$palrup_binary -t=$t \
-            -log=$return_dir/$log_dir -jwl=$timeout -T=$(($timeout+30)) | grep -E "s UNSATISFIABLE")
+            -log=$log_dir -jwl=$timeout -T=$(($timeout+30)) | grep -E "s UNSATISFIABLE")
 fi
 
 # clean up proof hierarchy
 cd $return_dir
-mv $proof_dir/proof#1/* $return_dir/$proof_dir/
+mv $proof_dir/proof#1/* $proof_dir/
 rm -r $proof_dir/proof#1
 
 # report success (or lack thereof)
