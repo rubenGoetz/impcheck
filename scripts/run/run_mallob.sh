@@ -58,9 +58,9 @@ return_dir=$PWD
 cd $mallob_dir
 
 # append $return_dir if paths are given relative
-if [[ ${log_dir:0:1} != "/" ]] log_dir=$return_dir/$log_dir
-if [[ ${$formula_path:0:1} != "/" ]] formula_path=$return_dir/$formula_path
-if [[ ${$proof_dir:0:1} != "/" ]] proof_dir=$return_dir/$proof_dir
+if [[ ${log_dir:0:1} != "/" ]]; then log_dir=$return_dir/$log_dir; fi
+if [[ ${formula_path:0:1} != "/" ]]; then formula_path=$return_dir/$formula_path; fi
+if [[ ${proof_dir:0:1} != "/" ]]; then proof_dir=$return_dir/$proof_dir; fi
 
 # run mallob with timeout
 RDMAV_FORK_SAFE=1
@@ -68,10 +68,13 @@ t=$(($num_solvers / $processors))
 
 if [[ $log_dir ]]; then
     mkdir -p $log_dir
-    mpiexec -np $processors --bind-to core --map-by ppr:${processors}:node:pe=$t build/mallob \
+    cmd="mpiexec -np $processors --bind-to core --map-by ppr:${processors}:node:pe=$t build/mallob \
             -mono=$formula_path -proof-dir=$proof_dir \
             -palrup=1 -v=4 -palrup-binary=$palrup_binary -t=$t \
-            -log=$log_dir -jwl=$timeout -T=$(($timeout+30)) > $log_dir/std.out
+            -log=$log_dir -jwl=$timeout -T=$(($timeout+30)) > $log_dir/std.out"
+    echo "run Mallob with command:"
+    echo $cmd
+    $cmd
 
     res=$(cat $log_dir/std.out | grep -E "s UNSATISFIABLE")
 else

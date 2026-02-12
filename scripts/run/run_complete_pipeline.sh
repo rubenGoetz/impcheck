@@ -226,5 +226,4 @@ fi
 echo "PROOF VALIDATED"
 
 ## cleanup
-log_space_usage
 run_cleanup
