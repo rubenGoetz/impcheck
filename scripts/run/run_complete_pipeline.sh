@@ -30,9 +30,9 @@ run_cleanup() {
     # allow cleanup overwrite
     if [[ $1 ]]; then cleanup=$1; fi
 
-    wc -c $proof_dir_in/*/*.palrup >> "$log_dir/metadata/palrup_proof.filesize"
-    wc -c $proof_dir_out/*/*.palrup_proxy >> "$log_dir/metadata/palrup_proxy.filesize"
-    wc -c $proof_dir_out/*/*.palrup_import >> "$log_dir/metadata/palrup_import.filesize"
+    wc -c $proof_dir_in/*/*.palrup >> "$log_dir/metadata/palrup_proof.filesize" 2> /dev/null
+    wc -c $proof_dir_out/*/*.palrup_proxy >> "$log_dir/metadata/palrup_proxy.filesize" 2> /dev/null
+    wc -c $proof_dir_out/*/*.palrup_import >> "$log_dir/metadata/palrup_import.filesize" 2> /dev/null
 
     if [[ $cleanup > 1 ]]; then
         cond_log "clean up written files.. " -n

@@ -68,13 +68,10 @@ t=$(($num_solvers / $processors))
 
 if [[ $log_dir ]]; then
     mkdir -p $log_dir
-    cmd="mpiexec -np $processors --bind-to core --map-by ppr:${processors}:node:pe=$t build/mallob \
+    mpiexec -np $processors --bind-to core --map-by ppr:${processors}:node:pe=$t build/mallob \
             -mono=$formula_path -proof-dir=$proof_dir \
             -palrup=1 -v=4 -palrup-binary=$palrup_binary -t=$t \
-            -log=$log_dir -jwl=$timeout -T=$(($timeout+30)) > $log_dir/std.out"
-    echo "run Mallob with command:"
-    echo $cmd
-    $cmd
+            -log=$log_dir -jwl=$timeout -T=$(($timeout+30)) > $log_dir/std.out
 
     res=$(cat $log_dir/std.out | grep -E "s UNSATISFIABLE")
 else
