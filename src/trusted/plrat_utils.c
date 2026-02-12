@@ -126,6 +126,13 @@ bool plrat_utils_import_unchecked(unsigned long id, const int* literals, int nb_
     return lrat_check_add_axiomatic_clause(id, literals, nb_literals);
 }
 
+bool plrat_utils_check_hints(unsigned long id, const unsigned long* hints, int nb_hints) {
+    for (int i = 0; i < nb_hints; i++)
+        if (hints[i] >= id)
+            return false;
+    return true;
+}
+
 void plrat_utils_log(const char* msg) {
     printf("p [PLRAT_CHECKER %i] %s\n", getpid(), msg);
 }

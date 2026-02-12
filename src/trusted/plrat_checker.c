@@ -195,6 +195,14 @@ void parse(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
                 nb_hints++;
             }
 
+            //check ID's in hints
+            if (!plrat_utils_check_hints(id, buf_hints->data, nb_hints)) {
+                char msg[523];
+                snprintf(msg, 512, "Discoverd hint >= id in produced clause. ID:%lu", id);
+                plrat_utils_log_err(msg);
+                exit(1);
+            }
+
             // forward to checker
             top_check_produce(id, buf_lits->data, nb_lits,
                               buf_hints->data, nb_hints);
@@ -264,6 +272,13 @@ void parse_legacy(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
             const int nb_hints = plrat_reader_read_int(proof);
             // printf("nb hints %d\n", nb_hints);
             read_hints(nb_hints);
+            // check monotonous ID
+            if (!plrat_utils_check_hints(id, buf_hints->data, nb_hints)) {
+                char msg[523];
+                snprintf(msg, 512, "Discoverd hint >= id in produced clause. ID:%lu", id);
+                plrat_utils_log_err(msg);
+                exit(1);
+            }
             // forward to checker
             top_check_produce(id, buf_lits->data, nb_lits,
                               buf_hints->data, nb_hints);

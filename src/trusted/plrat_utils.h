@@ -18,6 +18,8 @@ void plrat_utils_translate_and_delete(struct hash_table* id_offsets, u64* hints,
 
 bool plrat_utils_import_unchecked(unsigned long id, const int* literals, int nb_literals);
 
+bool plrat_utils_check_hints(unsigned long id, const unsigned long* hints, int nb_hints);
+
 void plrat_utils_log(const char* msg);
 void plrat_utils_log_err(const char* msg);
 
