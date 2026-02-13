@@ -287,9 +287,10 @@ static void generate_random_clauses() {
         for (size_t j = 1; j < nb_lits; j++)
             lits[j] = random();
         clause_ptr c = create_flat_clause(id, nb_lits, lits);
+        free(lits);
         // enough clauses generated
         if (clause_mem + get_clause_size(c) > HEAP_CAPACITY) {
-            //bonus_clause = c;
+            delete_flat_clause(c);
             break;
         }
         clauses[NUM_CLAUSES++] = c;
