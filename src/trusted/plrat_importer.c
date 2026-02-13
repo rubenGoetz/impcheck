@@ -159,11 +159,7 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
         file_names[i] = trusted_utils_calloc(1024, sizeof(char));
         memcpy(file_names[i], ids_path, 1024);
 
-        if (i != local_rank)
-            clause_heaps[i] = heap_init(write_buffer_size);
-        else
-            clause_heaps[i] = heap_init(1);     // Use a small placeholder for less edgecases
-
+        clause_heaps[i] = heap_init(write_buffer_size);        
         signatures[i] = comm_sig_init(SECRET_KEY_2);
     }
 }
@@ -273,6 +269,7 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
 void plrat_importer_end() {
     for (size_t i = 0; i < comm_size; i++) {
         flush_heap_to_file(clause_heaps[i], i, 0);
+        assert(clause_heaps[i]->size == 0);
         u8* sig = comm_sig_digest(signatures[i]);
         plrat_importer_write_hash(sig, out_files[i]);
         // write clause count to beginning of file
@@ -305,6 +302,9 @@ void plrat_importer_log(unsigned long id, const int* literals, int nb_literals) 
     // write to file if capacity is reached
     if (heap_insert(clause_heap, _clause)) {
         flush_heap_to_file(clause_heap, file_id, 0.5);
-        heap_insert(clause_heap, _clause);
+        if (heap_insert(clause_heap, _clause)) {
+            plrat_utils_log_err("Clause could not be inserted into heap.");
+            exit(1);
+        }
     }
 }
