@@ -177,6 +177,14 @@ void parse(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
             u64 id = (u64)plrat_reader_read_vbl_sl(proof);
             siphash_cls_update(clause_hash, (u8*)&id, sizeof(u64));
 
+            // locality of assigned IDs
+            if (id % nb_solvers != solver_rank) {
+                char msg[523];
+                snprintf(msg, 512, "Learned clause has non local ID. ID:%lu, solver_rank:%lu, nb_solvers:%lu", id, solver_rank, nb_solvers);
+                plrat_utils_log_err(msg);
+                exit(1);
+            }
+
             // Monotonicity of assigned IDs
             if (id < max_derived_id) {
                 char msg[523];
