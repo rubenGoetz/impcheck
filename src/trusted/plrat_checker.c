@@ -360,9 +360,9 @@ void pc_init(const char* formula_path, const char* proofs_path_in, const char* p
         // file doesn't exist
         // create placeholder file containing only 0
         FILE* f = fopen(proof_path_in, "wb");
-        trusted_utils_write_char(1, f);
-        trusted_utils_write_char(2, f);
-        trusted_utils_write_char(TRUSTED_CHK_TERMINATE, f);  // write placeholder
+        //trusted_utils_write_char(1, f);
+        //trusted_utils_write_char(2, f);
+        //trusted_utils_write_char(TRUSTED_CHK_TERMINATE, f);  // write placeholder
         fclose(f);
     } 
 

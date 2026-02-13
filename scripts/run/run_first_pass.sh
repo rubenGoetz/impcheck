@@ -51,9 +51,11 @@ if [[ ! $log_dir ]]; then echo "if"; log_dir=$proof_dir_out; fi
 for i in $(seq 0 $(($num_solvers-1))); do mkdir -p $proof_dir_out/$i; done
 
 for solverid in $(seq 0 $(($num_solvers-1))); do
-    # prepare log_dir
+    # prepare directories
     mkdir -p "$log_dir/#$solverid"
     if [[ -f "$log_dir/#$solverid/first_pass" ]]; then rm "$log_dir/#$solverid/first_pass"; fi
+    mkdir -p "$proof_dir_in/$solverid"
+    mkdir -p "$proof_dir_out/$solverid"
 
     # redistribution-strategy=2 is currently the only one working
     command time -p -o "$log_dir/#$solverid/first_pass" ./build/plrat_first_pass \
