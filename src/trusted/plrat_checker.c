@@ -148,6 +148,7 @@ bool pc_load_from_file(FILE* formular) {
 }
 
 void parse(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
+    u64 max_derived_id = 0;
     while (true) {
         char c = plrat_reader_read_vbl_char(proof);
         if (plrat_reader_eof_reached(proof)) {
@@ -175,7 +176,16 @@ void parse(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
             
             u64 id = (u64)plrat_reader_read_vbl_sl(proof);
             siphash_cls_update(clause_hash, (u8*)&id, sizeof(u64));
-            
+
+            // Monotonicity of assigned IDs
+            if (id < max_derived_id) {
+                char msg[523];
+                snprintf(msg, 512, "Learned clause has lower ID that previously learned clause. newID:%lu, prevID:%lu", id, max_derived_id);
+                plrat_utils_log_err(msg);
+                exit(1);
+            }
+            max_derived_id = id;
+
             // parse lits
             int nb_lits = 0;
             while (true) {
@@ -195,7 +205,7 @@ void parse(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
                 nb_hints++;
             }
 
-            //check ID's in hints
+            //check IDs in hints
             if (!plrat_utils_check_hints(id, buf_hints->data, nb_hints)) {
                 char msg[523];
                 snprintf(msg, 512, "Discoverd hint >= id in produced clause. ID:%lu", id);
