@@ -47,7 +47,7 @@ fi
 if [[ ! $log_dir ]]; then log_dir=$proof_dir_import; fi
 
 echo "run last pass for $num_solvers threads with command:"
-eco "./build/plrat_last_pass \
+echo "./build/plrat_last_pass \
         -formula-path=$formula_path -proofs-path=$proof_dir_palrup \
         -imports-path=$proof_dir_import -num-solvers=$num_solvers \
         -solver-id=<solver-id> -palrup-binary=$palrup_binary \

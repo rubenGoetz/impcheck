@@ -50,7 +50,7 @@ fi
 echo "$comm_size"
 
 echo "run reroute for $comm_size threads with command:"
-eco "./build/plrat_reroute \
+echo "./build/plrat_reroute \
         -proofs-path=$proofs_path -num-solvers=$num_solvers -solver-id=<thread-id> \
         -read-buffer-KB=$buffer_size -redistribution-strategy=2"
 
