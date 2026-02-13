@@ -46,6 +46,13 @@ fi
 # set log_dir
 if [[ ! $log_dir ]]; then log_dir=$proof_dir_import; fi
 
+echo "run last pass for $num_solvers threads with command:"
+eco "./build/plrat_last_pass \
+        -formula-path=$formula_path -proofs-path=$proof_dir_palrup \
+        -imports-path=$proof_dir_import -num-solvers=$num_solvers \
+        -solver-id=<solver-id> -palrup-binary=$palrup_binary \
+        -read-buffer-KB=$buffer_size -redistribution-strategy=2"
+
 for solverid in $(seq 0 $(($num_solvers-1))); do
     #prepare log_dir
     mkdir -p "$log_dir/#$solverid"

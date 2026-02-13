@@ -49,6 +49,11 @@ if (( $comm_size < num_solvers )); then
 fi
 echo "$comm_size"
 
+echo "run reroute for $comm_size threads with command:"
+eco "./build/plrat_reroute \
+        -proofs-path=$proofs_path -num-solvers=$num_solvers -solver-id=<thread-id> \
+        -read-buffer-KB=$buffer_size -redistribution-strategy=2"
+
 # redistribution-strategy=2 is currently the only one working
 for solverid in $(seq 0 $(($comm_size-1))); do
     #prepare log_dir

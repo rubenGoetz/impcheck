@@ -153,7 +153,7 @@ cond_log "Run PalRup checker:"
 ## run first pass
 cond_log "run first pass.. " -n
 
-msg=$(bash ./scripts/run/run_first_pass.sh \
+msg=$(stdbuf -o 0 bash ./scripts/run/run_first_pass.sh \
         -formula-path=$formula_path -proof-in=$proof_dir_in -proof-out=$proof_dir_out \
         -num-solvers=$num_solvers -palrup-binary=$palrup_binary -buffer-size=$buffer_size \
         -log-dir=$log_dir)
@@ -173,7 +173,7 @@ fi
 ## run reroute
 cond_log "run reroute.. " -n
 
-msg=$(bash ./scripts/run/run_reroute.sh \
+msg=$(stdbuf -o 0 bash ./scripts/run/run_reroute.sh \
         -proofs-path=$proof_dir_out -num-solvers=$num_solvers \
         -buffer-size=$buffer_size -log-dir=$log_dir)
 res=$?
@@ -192,7 +192,7 @@ fi
 ## run last pass
 cond_log "run last pass.. " -n
 
-msg=$(bash ./scripts/run/run_last_pass.sh \
+msg=$(stdbuf -o 0 bash ./scripts/run/run_last_pass.sh \
         -formula-path=$formula_path -proof-palrup=$proof_dir_in -proof-import=$proof_dir_out \
         -num-solvers=$num_solvers -palrup-binary=$palrup_binary -buffer-size=$buffer_size \
         -log-dir=$log_dir)

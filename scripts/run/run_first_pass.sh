@@ -50,6 +50,13 @@ if [[ ! $log_dir ]]; then echo "if"; log_dir=$proof_dir_out; fi
 # prepare proof_dir_out
 for i in $(seq 0 $(($num_solvers-1))); do mkdir -p $proof_dir_out/$i; done
 
+echo "run first pass for $num_solvers threads with command:"
+eco "./build/plrat_first_pass \
+        -formula-path=$formula_path -proofs-path-in=$proof_dir_in \
+        -proofs-path-out=$proof_dir_out -num-solvers=$num_solvers \
+        -solver-id=<solver-id> -read-buffer-KB=$buffer_size -redistribution-strategy=2 \
+        -palrup-binary$palrup_binary"
+
 for solverid in $(seq 0 $(($num_solvers-1))); do
     # prepare directories
     mkdir -p "$log_dir/#$solverid"
