@@ -266,7 +266,7 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
             delete_flat_clause(heap_clause);
         }
 
-        assert(merge_buffer->size > 0);
+        assert(merge_buffer->size == 0);
     }
 }
 
