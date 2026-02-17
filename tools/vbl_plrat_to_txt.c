@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
             // printf("a PRODUCE\n");
 
             // parse clause
-            u64 id = (u64)plrat_reader_read_vbl_int(reader);
+            u64 id = (u64)plrat_reader_read_vbl_sl(reader);
             fprintf(output, "%c %lu", c, id);
             while (true) {
                 int lit = plrat_reader_read_vbl_int(reader);
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
 
             // parse hints
             while (true) {
-                int hint = plrat_reader_read_vbl_int(reader);
+                int hint = plrat_reader_read_vbl_sl(reader);
                 fprintf(output, " %i", hint);
                 if (!hint) break;
             }
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
             // printf("i IMPORT\n");
 
             // parse clause
-            u64 id = (u64)plrat_reader_read_vbl_int(reader);
+            u64 id = (u64)plrat_reader_read_vbl_sl(reader);
             fprintf(output, "%c %lu", c, id);
             while (true) {
                 int lit = plrat_reader_read_vbl_int(reader);
@@ -116,20 +116,13 @@ int main(int argc, char *argv[]) {
             // parse clause
             fprintf(output, "%c", c);
             while (true) {
-                u64 hint = plrat_reader_read_vbl_int(reader);
+                u64 hint = plrat_reader_read_vbl_sl(reader);
                 //nb_lits++;
                 fprintf(output, " %lu", hint);
                 if (!hint) break;
             }
 
             fprintf(output, "\n");
-
-        } else if (c == 'T') {
-            // log
-            // printf("T TERMINATE\n");
-
-            // TODO: copy hash into file header
-            break;
 
         } else {
             char errlog[512];
