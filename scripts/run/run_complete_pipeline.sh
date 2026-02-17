@@ -30,10 +30,6 @@ run_cleanup() {
     # allow cleanup overwrite
     if [[ $1 ]]; then cleanup=$1; fi
 
-    wc -c $proof_dir_in/*/*.palrup >> "$log_dir/metadata/palrup_proof.filesize" 2> /dev/null
-    wc -c $proof_dir_out/*/*.palrup_proxy >> "$log_dir/metadata/palrup_proxy.filesize" 2> /dev/null
-    wc -c $proof_dir_out/*/*.palrup_import >> "$log_dir/metadata/palrup_import.filesize" 2> /dev/null
-
     if [[ $cleanup > 1 ]]; then
         cond_log "clean up written files.. " -n
 
@@ -138,12 +134,15 @@ if [[ $run_mallob ]]; then
             -proof=$proof_dir_in -processors=$processors -timeout=$mallob_timeout \
             -palrup-binary=$palrup_binary -log-dir=$log_dir/mallob)
     res=$?
+    wc -c $proof_dir_in/*/*.palrup >> "$log_dir/metadata/palrup_proof.filesize" 2> /dev/null
 
     if [[ $res == 0 ]]; then
         cond_log "DONE"
     else
         cond_log "FAILED"
-        err_log "Mallob failed with exit code $res and error message: $msg"
+        msg1=$msg
+        run_cleanup 2   # remove unfinished proof
+        err_log "Mallob failed with exit code $res and error message: $msg1"
     fi
 fi
 
@@ -178,6 +177,8 @@ msg=$(stdbuf -o 0 bash ./scripts/run/run_reroute.sh \
         -buffer-size=$buffer_size -log-dir=$log_dir)
 res=$?
 echo $msg > $log_dir/metadata/reroute.out
+wc -c $proof_dir_out/*/*.palrup_proxy >> "$log_dir/metadata/palrup_proxy.filesize" 2> /dev/null
+wc -c $proof_dir_out/*/*.palrup_import >> "$log_dir/metadata/palrup_import.filesize" 2> /dev/null
 
 if [[ $(echo "$msg" | grep -E "\[ERROR\]") ]]; then
     cond_log "FAILED"
