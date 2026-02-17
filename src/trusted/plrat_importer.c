@@ -42,6 +42,8 @@ char** file_names;  // to be removed. uses for file shenanigans
 u64* clause_counts; // count clauses contained in each file
 struct merge_buffer* merge_buffer;
 
+// TODO: gather stats
+
 #ifdef UNIT_TEST
 FILE* get_plrat_importer_out_file() {
     return out_files[0];
@@ -263,6 +265,8 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
                                    get_clause_nb_lits(heap_clause));
             delete_flat_clause(heap_clause);
         }
+
+        assert(merge_buffer->size > 0);
     }
 }
 
@@ -273,7 +277,7 @@ void plrat_importer_end() {
         u8* sig = comm_sig_digest(signatures[i]);
         plrat_importer_write_hash(sig, out_files[i]);
         // write clause count to beginning of file
-        rewind(out_files[i]);
+        fseek(out_files[i], 0, SEEK_SET);
         trusted_utils_write_int(clause_counts[i], out_files[i]);
         comm_sig_free(signatures[i]);
         free(sig);

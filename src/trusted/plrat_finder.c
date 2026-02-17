@@ -167,7 +167,6 @@ void parse(bool* found_T) {
                 } else {
                     char err_str[512];
                     snprintf(err_str, 512, "literals do not match in proof my rank:%lu ID:%lu", local_rank, current_ID);
-                    printf(">> ftell() = %li, total_bytes = %li, fgetc().eof? = %i\n", ftell(proof_reader->buffered_file), proof_reader->total_bytes, fgetc(proof_reader->buffered_file) == EOF);
                     if (true/*local_rank == 0*/) {
                         printf("current_literals_data %lu: ", current_literals_size);
                         for (u64 i = 0; i < current_literals_size; i++) {

@@ -37,6 +37,7 @@ struct plrat_reader* proof;  // named pipe
 struct siphash* clause_hash;
 
 int nb_vars;               // # variables in formula
+long nb_clauses;           // # clauses in formula
 signature formula_sig;     // formula signature
 u64 nb_solvers;            // number of solvers
 u64 solver_rank;           // solver id
@@ -111,6 +112,7 @@ bool pc_load_from_file(FILE* formular) {
             break;
         }
     }
+    nb_clauses = nClauses;
 
     if (!foundPcnf) {
         plrat_utils_log_err("Error: 'p cnf' line not found in the formula file");
@@ -177,6 +179,14 @@ void parse(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
             u64 id = (u64)plrat_reader_read_vbl_sl(proof);
             siphash_cls_update(clause_hash, (u8*)&id, sizeof(u64));
 
+            // Starting point of assigned ids
+            if (id <= (u64)nb_clauses) {
+                char msg[523];
+                snprintf(msg, 512, "Learned clause has ID lower that original formula. ID:%lu, solver_rank:%lu, nb_solvers:%lu", id, solver_rank, nb_solvers);
+                plrat_utils_log_err(msg);
+                exit(1);
+            }
+
             // locality of assigned IDs
             if (id % nb_solvers != solver_rank) {
                 char msg[523];
@@ -230,6 +240,14 @@ void parse(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
             int_vec_resize(buf_lits, 0);
 
             u64 id = (u64)plrat_reader_read_vbl_sl(proof);
+
+            // Check ID against original formula
+            if (id <= (u64)nb_clauses) {
+                char msg[523];
+                snprintf(msg, 512, "Learned clause has ID lower that original formula. ID:%lu, solver_rank:%lu, nb_solvers:%lu", id, solver_rank, nb_solvers);
+                plrat_utils_log_err(msg);
+                exit(1);
+            }
 
             // parse lits
             int nb_lits = 0;

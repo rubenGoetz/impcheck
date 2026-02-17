@@ -42,6 +42,7 @@ void merge_buffer_free(struct merge_buffer* buffer) {
 }
 
 void merge_buffer_open_file(struct merge_buffer* buffer, char* file_name) {
+    buffer->eof = false;
     if (buffer->file)
         fclose(buffer->file);
     
