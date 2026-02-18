@@ -40,6 +40,6 @@ echo "$cmd"
 
 for id in $(seq 0 $(($comm_size-1))); do
     # TODO: errors?
-    srun --ntasks=1 { $cmd >> log_dir/#$id/reroute } &
+    $cmd >> $log_dir/#$id/reroute &
 done
 wait

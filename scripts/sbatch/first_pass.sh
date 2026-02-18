@@ -38,11 +38,13 @@ cmd="./build/plrat_first_pass \
 ####################
 ## run first pass ##
 ####################
-echo "run first pass for $num_solvers threads with command (i \in [0 $(($num_solvers-1))]):"
+# TODO: make readable
+echo "run first pass for $num_solvers threads with command (i \in [0, $(($num_solvers-1))]):"
 echo "$cmd"
 
 for id in $id_range; do
     # TODO: get errors?
-    srun --ntasks=1 { $cmd >> log_dir/#$id/first_pass } &
+    echo "run first pass for id: $id"
+    $cmd >> $log_dir/#$id/first_pass &
 done
 wait

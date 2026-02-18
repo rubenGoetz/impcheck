@@ -7,6 +7,7 @@ proof_palrup=$PROOF_PALRUP
 proof_working=$PROOF_WORKING
 log_dir=$IMPCHECK_LOG
 formula_path=$FORMULA_PATH
+impcheck_dir=$IMPCHECK_DIR
 nodes=$DS_NODES
 num_solvers=$NUM_SOLVERS
 
@@ -32,10 +33,14 @@ elif [[ ! -d $proof_palrup/proof#1 ]]; then
     echo "found $proof_palrup/$(ls $proof_palrup) instead of expected $proof_palrup/proof#1"
     exit 1
 fi
+proof_palrup="$proof_palrup/proof#1"
+export PROOF_PALRUP=$proof_palrup
+
+# prepare log dir
+mkdir -p $(for i in $(seq 0 $(($num_solvers-1))); do echo "$log_dir/#$i"; done)
 
 # set working directory to impcheck/
 return_dir=$(pwd)
-impcheck_dir=$IMPCHECK_DIR
 cd "$impcheck_dir"
 
 assert_success() {

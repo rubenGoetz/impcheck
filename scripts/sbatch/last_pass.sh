@@ -40,6 +40,6 @@ echo "$cmd"
 
 for id in $id_range; do
     # TODO: get errors?
-    srun --ntasks=1 { $cmd >> log_dir/#$id/last_pass } &
+    $cmd >> $log_dir/#$id/last_pass &
 done
 wait
