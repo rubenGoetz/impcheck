@@ -144,11 +144,11 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
             mkdir(proof_folder, 0755);
         }
 
-        if (redist_strat == 2) {
-            snprintf(ids_path, 1024, "%s/%lu.palrup_proxy", proof_folder, plrat_utils_rank_to_x(local_rank, comm_size));
-        } else {
-            snprintf(ids_path, 1024, "%s/%lu.palrup_import", proof_folder, local_rank);
-        }
+        // mark filenames as 'not finished writing'
+        if (redist_strat == 2)
+            snprintf(ids_path, 1024, "%s/%lu.palrup_proxy~", proof_folder, plrat_utils_rank_to_x(local_rank, comm_size));
+        else
+            snprintf(ids_path, 1024, "%s/%lu.palrup_import~", proof_folder, local_rank);
 
         // plrat_utils_log(ids_path);
         out_files[i] = fopen(ids_path, "wb+");
@@ -287,6 +287,11 @@ void plrat_importer_end() {
         heap_free(clause_heaps[i]);
         fsync(fileno(out_files[i]));
         fclose(out_files[i]);
+        int new_str_len = strlen(file_names[i])-1;
+        char new_filename[new_str_len];
+        memcpy(new_filename, file_names[i], new_str_len);
+        new_filename[new_str_len] = '\0';
+        rename(file_names[i], new_filename);
         free(file_names[i]);
     }
     free(out_files);

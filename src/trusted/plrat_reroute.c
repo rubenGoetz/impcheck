@@ -36,6 +36,7 @@ u64 _re_current_literals_size;
 u64 _re_current_ID = empty_ID;
 u64* _re_count_clauses;
 FILE** _bu_output_files;
+char** file_names;
 struct siphash** out_hash;
 struct comm_sig** comm_sig_compute;
 
@@ -83,6 +84,7 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
     out_path = main_path;
     local_rank = solver_rank;
     _bu_output_files = trusted_utils_malloc(sizeof(FILE*) * comm_size);
+    file_names = trusted_utils_calloc(comm_size, sizeof(char*));
     _re_count_clauses = trusted_utils_calloc(comm_size, sizeof(u64));
     out_hash = trusted_utils_malloc(sizeof(struct siphash*) * comm_size);
     comm_sig_compute = trusted_utils_malloc(sizeof(struct comm_sig*) * comm_size);
@@ -96,7 +98,9 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
 
         snprintf(folder_path, 512, "%s/%lu", out_path, plrat_reroute_get_destination_rank(i));
         mkdir(folder_path, 0755);
-        snprintf(tmp_path, 1024, "%s/%lu.palrup_import", folder_path, plrat_utils_rank_to_y(local_rank, comm_size));
+        snprintf(tmp_path, 1024, "%s/%lu.palrup_import~", folder_path, plrat_utils_rank_to_y(local_rank, comm_size));
+        file_names[i] = trusted_utils_calloc(1024, sizeof(char));
+        memcpy(file_names[i], tmp_path, 1024);
         _bu_output_files[i] = fopen(tmp_path, "wb");
 
         if (!(_bu_output_files[i])) trusted_utils_exit_eof();
@@ -164,6 +168,12 @@ void plrat_reroute_end() {
         plrat_reroute_write_int(_re_count_clauses[i], _bu_output_files[i]);
         fsync(fileno(_bu_output_files[i]));
         fclose(_bu_output_files[i]);
+        int new_str_len = strlen(file_names[i])-1;
+        char new_filename[new_str_len];
+        memcpy(new_filename, file_names[i], new_str_len);
+        new_filename[new_str_len] = '\0';
+        rename(file_names[i], new_filename);
+        free(file_names[i]);
         siphash_cls_free(out_hash[i]);
         comm_sig_free(comm_sig_compute[i]);
     }
@@ -171,6 +181,7 @@ void plrat_reroute_end() {
     free(comm_sig_compute);
     free(_re_count_clauses);
     free(_bu_output_files);
+    free(file_names);
     import_merger_end();
 }
 
