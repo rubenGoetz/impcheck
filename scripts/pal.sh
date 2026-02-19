@@ -33,15 +33,21 @@ if (( $comm_size < $num_solvers )); then
 fi
 
 # Avoid edgecases in pal_launcher
-if [[ $id >= $comm_size ]]; then exit; fi
+if [[ $id -ge $comm_size ]]; then exit; fi
 
+mkdir -p "$proof_working/$id"
 mkdir -p "$log_dir/#$id"
 log="$log_dir/#$id"
 
 echo "Initiated pal $id/$comm_size. Original solver count was $num_solvers" &>> "$log/std.out"
-echo "calculated root=$root, roof_floor=$root_floor, root_ceil=$root_ceil, comm_size=$comm_size" &>> "$log/std.out"
+echo "Calculated root=$root, roof_floor=$root_floor, root_ceil=$root_ceil, comm_size=$comm_size" &>> "$log/std.out"
 echo "prepared log dir at $log" &>> "$log/std.out"
-
+echo "read env variables:" &>> "$log/std.out"
+echo "num_solvers: $num_solvers" &>> "$log/std.out"
+echo "proof_palrup: $proof_palrup" &>> "$log/std.out"
+echo "proof_working: $proof_working" &>> "$log/std.out"
+echo "formula_path: $formula_path" &>> "$log/std.out"
+echo "log_dir: $log_dir" &>> "$log/std.out"
 
 #############
 ## run pal ##

@@ -24,6 +24,12 @@ for i in $(seq 0 $(($num_proc_per_node-1))); do
     fi
 done
 
+# fail save
+if [[ ! $local_id ]]; then
+    >&2 echo "Could not find a local id. Abort."
+    exit 1
+fi
+
 # calculate comm_size
 root=$(echo "sqrt ( $num_solvers )" | bc -l)
 root_floor=${root%.*}
@@ -68,6 +74,12 @@ echo "Initiated Pal launcher with global_id: $global_id and local_id: $local_id"
 echo "frag_pals: ${frag_pals[@]}" &>> "$log"
 echo "comm_pals: ${comm_pals[@]}" &>> "$log"
 echo "pal_id_set: ${pal_id_set[@]}" &>> "$log"
+echo "read env variables:" &>> "$log/std.out"
+echo "num_solvers: $num_solvers" &>> "$log"
+echo "num_nodes: $num_nodes" &>> "$log"
+echo "um_proc_per_node: $um_proc_per_node" &>> "$log"
+echo "proof_palrup: $proof_palrup" &>> "$log"
+echo "log_dir: $log_dir" &>> "$log"
 
 
 ################
@@ -75,7 +87,7 @@ echo "pal_id_set: ${pal_id_set[@]}" &>> "$log"
 ################
 echo "Launch Pals.." &>> "$log"
 for pal in ${pal_id_set[@]}; do
-    bash pal.sh $pal &
+    bash scripts/pal.sh $pal &
 done
 echo "Wait for Pals.." &>> "$log"
 wait
