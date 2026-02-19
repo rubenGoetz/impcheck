@@ -15,7 +15,7 @@
 id=$1
 
 num_solvers=$NUM_SOLVERS
-proof_palrup=$PROOF_PALRUP
+proof_palrup="$PROOF_PALRUP/proof#1"
 proof_working=$PROOF_WORKING
 formula_path=$FORMULA_PATH
 log_dir=$LOG_DIR
@@ -93,6 +93,10 @@ echo "run $cmd" &>> "$log/std.out"
 command time -f "WC_TIME=%e" -a -o "$log/reroute" $cmd &>> "$log/reroute"
 echo "Finished reroute" &>> "$log/std.out"
 
+# clean up .palrup_proxy
+echo "clean up .palrup_proxy files in $proof_working/$id" &>> "$log/std.out"
+rm $proof_working/$id/*.palrup_proxy
+
 
 if (( $id < $num_solvers )); then
 
@@ -117,8 +121,19 @@ if (( $id < $num_solvers )); then
     command time -f "WC_TIME=%e" -a -o "$log/last_pass" $cmd &>> "$log/last_pass"
     echo "Finished last pass" &>> "$log/std.out"
 
+    #clean up proof
+    echo "clean up local proof fragment and hash in $proof_palrup/$id" &>> "$log/std.out"
+    rm $proof_palrup/$id/*
+
 else
     echo "Skip last pass" &>> "$log/std.out"
 fi
+
+# clean up .palrup_import
+echo "clean up .palrup_import files in $proof_working/$id" &>> "$log/std.out"
+rm $proof_working/$id/*.palrup_import
+
+# leave marker, that execution is finished
+mkdir $proof_working/$id/.done
 
 echo "Finished execution of pal $id/$comm_size"

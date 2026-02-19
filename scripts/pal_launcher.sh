@@ -12,7 +12,8 @@ start=$(date +%s.%N)
 num_solvers=$NUM_SOLVERS
 num_nodes=$NUM_NODES
 num_proc_per_node=$NUM_PROCS_PER_NODE
-proof_palrup=$PROOF_PALRUP
+proof_palrup="$PROOF_PALRUP/proof#1"
+proof_working=$PROOF_WORKING
 log_dir=$LOG_DIR
 
 # get local id on node
@@ -91,6 +92,30 @@ done
 echo "Wait for Pals.." &>> "$log"
 wait
 echo "All Pals returned." &>> "$log"
+
+# clean up proof after local pals are finished
+if [[ $local_id == 0 ]]; then
+    echo "wait for local pals to be finished" &>> "$log"
+    until [[ $(find $proof_palrup -name out.palrup | wc -l) == 0 ]]; do
+        sleep 0.5
+    done
+    echo "clean up $proof_palrup" &>> "$log"
+    rm -r "$PROOF_PALRUP"
+fi
+
+# validate check and clean up working dir after all pals are finished
+if [[ $global_id == 0 ]]; then
+    echo "wait for all pals to be finished" &>> "$log"
+    until [[ $(find $proof_working -name .done | wc -l) == $num_solvers ]]; do
+        sleep 0.5
+    done
+
+    echo "run validation validate" &>> "$log"
+    bash scripts/sbatch/validate.sh &>> "$log"
+
+    echo "clean up $proof_working" &>> "$log"
+    rm -r "$proof_working"
+fi
 
 end=$(date +%s.%N)
 elapsed=$(echo "$end - $start" | bc -l)
