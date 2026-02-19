@@ -1,0 +1,91 @@
+#!/bin/bash
+
+###################
+##
+## Launches Pals in a Process on a local machine.
+## Designed to be executed independantly on distributed Systems.
+##
+##################
+
+start=$(date +%s.%N)
+
+num_solvers=$NUM_SOLVERS
+num_nodes=$NUM_NODES
+num_proc_per_node=$NUM_PROCS_PER_NODE
+proof_palrup=$PROOF_PALRUP
+log_dir=$LOG_DIR
+
+
+# get local id on node
+for i in $(seq 0 $(($num_proc_per_node-1))); do
+    if mkdir /tmp/.pal_launcher.$i.lock 2>/dev/null ; then
+        local_id=$i
+        break;
+    fi
+done
+
+# calculate comm_size
+root=$(echo "sqrt ( $num_solvers )" | bc -l)
+root_floor=${root%.*}
+comm_size=$(($root_floor**2))
+if (( $comm_size < num_solvers )); then
+    root_floor=$(($root_floor+1))
+    comm_size=$(($root_floor**2))
+fi
+
+##########################################
+## Calculate list of pals to be spawned ##
+##########################################
+# get fragments on local disk
+# soring is not strictly necessary but helps with debugging
+frag_id_set=($( ls "$proof_palrup" | sort -n ))
+num_fragments=$((${#frag_id_set[@]}/$num_proc_per_node))
+
+# calculate global id
+num_processes=$(($num_nodes*$num_proc_per_node))
+pals_per_proc=$(($num_solvers/$num_processes))
+global_id=$(((${frag_id_set[0]}/$pals_per_proc)+$local_id))
+
+# generate list of pals corresponding to fragments on local disk
+frag_pals_start_idx=$(($local_id*$pals_per_proc))
+frag_pals_end_idx=$((($local_id+1)*$pals_per_proc))
+frag_pals=${frag_id_set[@]:frag_pals_start_idx:frag_pals_end_idx}
+
+# generate list of additional pals needed in reroute step
+num_comm_pals=$(((($comm_size%$num_processes)/$num_processes)+1))
+comm_pal_start_idx=$((num_solvers+(global_id*num_comm_pals)))
+comm_pal_end_idx=$(($comm_pal_start_idx+$num_comm_pals-1))
+comm_pals=($(for i in $(seq $comm_pal_start_idx $comm_pal_end_idx); do echo $i; done))
+
+# concatenated list of all pals to be spawned
+pal_id_set=($frag_pals $comm_pals)
+
+# create log
+mkdir -p "$log_dir/procs/"
+log="$log_dir/procs/$global_id.out"
+
+echo "Initiated Pal launcher with global_id: $global_id and local_id: $local_id" &>> "$log"
+echo "frag_pals: ${frag_pals[@]}" &>> "$log"
+echo "comm_pals: ${comm_pals[@]}" &>> "$log"
+echo "pal_id_set: ${pal_id_set[@]}" &>> "$log"
+
+
+################
+## start pals ##
+################
+echo "Launch Pals.." &>> "$log"
+for pal in ${pal_id_set[@]}; do
+    bash pal.sh $pal &
+done
+echo "Wait for Pals.." &>> "$log"
+wait
+echo "All Pals returned." &>> "$log"
+
+end=$(date +%s.%N)
+elapsed=$(echo "$end - $start" | bc -l)
+echo "WC_TIME=$elapsed" &>> "$log"
+
+echo "Release lock" &>> "$log"
+rmdir /tmp/.pal_launcher.$local_id.lock 2>/dev/null
+
+echo "FINISHED" &>> "$log"
