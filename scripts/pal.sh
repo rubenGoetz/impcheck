@@ -27,6 +27,7 @@ log_dir=$LOG_DIR
 root=$(echo "sqrt ( $num_solvers )" | bc -l)
 root_floor=${root%.*}
 comm_size=$(($root_floor**2))
+root_ceil=$root_floor
 if (( $comm_size < $num_solvers )); then
     root_ceil=$(($root_floor+1))
     comm_size=$(($root_ceil**2))
@@ -56,7 +57,7 @@ echo "Begin execution" &>> "$log/std.out"
 
 # There might be more pals than solvers to fill up the reroute matrix.
 # Only run first and last pass for original solvers.
-if [[ $id < $num_solvers ]]; then
+if (( $id < $num_solvers )); then
 
     # run first pass
     cmd="./build/plrat_first_pass \
@@ -76,7 +77,7 @@ fi
 # wait until conditions for reroute are met
 echo "wait until conditions for reroute are met.." &>> "$log/std.out"
 start=$(date +%s.%N)
-until [[ $(ls "$proof_working/$id/" | grep ".palrup_proxy" | wc -l) == $root_ceil ]]; do
+until [[ $(ls $proof_working/$id/*.palrup_proxy | wc -l) == $root_ceil ]]; do
     sleep 0.1;
 done
 end=$(date +%s.%N)
@@ -93,13 +94,13 @@ command time -f "WC_TIME=%e" -a -o "$log/reroute" $cmd &>> "$log/reroute"
 echo "Finished reroute" &>> "$log/std.out"
 
 
-if [[ $id < $num_solvers ]]; then
+if (( $id < $num_solvers )); then
 
     # wait until conditions for last pass are met
     echo "wait until conditionss for last pass are met.." &>> "$log/std.out"
     start=$(date +%s.%N)
-    while [[ $(ls "$proof_working/$id/" | grep ".palrup_import" | wc -l) < $root_ceil ]]; do
-        sleep 0.1
+    until [[ $(ls $proof_working/$id/*.palrup_import | wc -l) == $root_ceil ]]; do
+        sleep 0.1;
     done
     end=$(date +%s.%N)
     elapsed=$( echo "$end - $start" | bc )
@@ -112,9 +113,9 @@ if [[ $id < $num_solvers ]]; then
     -imports-path=$proof_working -num-solvers=$num_solvers \
     -solver-id=$id -read-buffer-KB=4096 -redistribution-strategy=2 \
     -palrup-binary=1"
-    echo "run $cmd" &>> "$log/std.out"
+    echo "run $cmd" &>> "$log/std.out" &>> "$log/std.out"
     command time -f "WC_TIME=%e" -a -o "$log/last_pass" $cmd &>> "$log/last_pass"
-    echo "DONE" &>> "$log/std.out"
+    echo "Finished last pass" &>> "$log/std.out"
 
 else
     echo "Skip last pass" &>> "$log/std.out"

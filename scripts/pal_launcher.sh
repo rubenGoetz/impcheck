@@ -15,7 +15,6 @@ num_proc_per_node=$NUM_PROCS_PER_NODE
 proof_palrup=$PROOF_PALRUP
 log_dir=$LOG_DIR
 
-
 # get local id on node
 for i in $(seq 0 $(($num_proc_per_node-1))); do
     if mkdir /tmp/.pal_launcher.$i.lock 2>/dev/null ; then
@@ -74,7 +73,7 @@ echo "Initiated Pal launcher with global_id: $global_id and local_id: $local_id"
 echo "frag_pals: ${frag_pals[@]}" &>> "$log"
 echo "comm_pals: ${comm_pals[@]}" &>> "$log"
 echo "pal_id_set: ${pal_id_set[@]}" &>> "$log"
-echo "read env variables:" &>> "$log/std.out"
+echo "read env variables:" &>> "$log"
 echo "num_solvers: $num_solvers" &>> "$log"
 echo "num_nodes: $num_nodes" &>> "$log"
 echo "um_proc_per_node: $um_proc_per_node" &>> "$log"
