@@ -12,7 +12,7 @@ start=$(date +%s.%N)
 num_solvers=$NUM_SOLVERS
 num_nodes=$NUM_NODES
 num_proc_per_node=$NUM_PROCS_PER_NODE
-proof_palrup="$PROOF_PALRUP/proof#1"
+proof_palrup=$PROOF_PALRUP
 proof_working=$PROOF_WORKING
 log_dir=$LOG_DIR
 
@@ -67,8 +67,8 @@ comm_pals=($(for i in $(seq $comm_pal_start_idx $comm_pal_end_idx); do echo $i; 
 pal_id_set=($frag_pals $comm_pals)
 
 # create log
-mkdir -p "$log_dir/procs/"
-log="$log_dir/procs/$global_id.out"
+mkdir -p "$log_dir/$global_id"
+log="$log_dir/$global_id/palrup.out"
 
 echo "Initiated Pal launcher with global_id: $global_id and local_id: $local_id" &>> "$log"
 echo "frag_pals: ${frag_pals[@]}" &>> "$log"
@@ -77,7 +77,7 @@ echo "pal_id_set: ${pal_id_set[@]}" &>> "$log"
 echo "read env variables:" &>> "$log"
 echo "num_solvers: $num_solvers" &>> "$log"
 echo "num_nodes: $num_nodes" &>> "$log"
-echo "um_proc_per_node: $um_proc_per_node" &>> "$log"
+echo "num_proc_per_node: $num_proc_per_node" &>> "$log"
 echo "proof_palrup: $proof_palrup" &>> "$log"
 echo "log_dir: $log_dir" &>> "$log"
 
@@ -87,26 +87,26 @@ echo "log_dir: $log_dir" &>> "$log"
 ################
 echo "Launch Pals.." &>> "$log"
 for pal in ${pal_id_set[@]}; do
-    bash scripts/pal.sh $pal &
+    bash scripts/pal.sh $pal &>> "$log" &
 done
 echo "Wait for Pals.." &>> "$log"
 wait
 echo "All Pals returned." &>> "$log"
 
 # clean up proof after local pals are finished
-if [[ $local_id == 0 ]]; then
-    echo "wait for local pals to be finished" &>> "$log"
-    until [[ $(find $proof_palrup -name out.palrup | wc -l) == 0 ]]; do
-        sleep 0.5
-    done
-    echo "clean up $proof_palrup" &>> "$log"
-    rm -r "$PROOF_PALRUP"
-fi
+# if [[ $local_id == 0 ]]; then
+#     echo "wait for local pals to be finished" &>> "$log"
+#     until [[ $(find $proof_palrup -name out.palrup | wc -l) == 0 ]]; do
+#         sleep 0.5
+#     done
+#     echo "clean up $proof_palrup" &>> "$log"
+#     rm -r "$PROOF_PALRUP"
+# fi
 
 # validate check and clean up working dir after all pals are finished
 if [[ $global_id == 0 ]]; then
     echo "wait for all pals to be finished" &>> "$log"
-    until [[ $(find $proof_working -name .done | wc -l) == $num_solvers ]]; do
+    until [[ $(find $proof_working -name .done | wc -l) == $comm_size ]]; do
         sleep 0.5
     done
 

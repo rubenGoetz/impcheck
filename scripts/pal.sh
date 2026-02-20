@@ -15,7 +15,7 @@
 id=$1
 
 num_solvers=$NUM_SOLVERS
-proof_palrup="$PROOF_PALRUP/proof#1"
+proof_palrup=$PROOF_PALRUP
 proof_working=$PROOF_WORKING
 formula_path=$FORMULA_PATH
 log_dir=$LOG_DIR
@@ -33,15 +33,21 @@ if (( $comm_size < $num_solvers )); then
     comm_size=$(($root_ceil**2))
 fi
 
+# calculate expected inputs for reroute
+expected_proxy=$root_ceil
+if [[ $id -ge $(($comm_size-$root_ceil)) ]]; then
+    expected_proxy=$(($root_ceil-($comm_size-$num_solvers)))
+fi
+
 # Avoid edgecases in pal_launcher
 if [[ $id -ge $comm_size ]]; then exit; fi
 
 mkdir -p "$proof_working/$id"
-mkdir -p "$log_dir/#$id"
-log="$log_dir/#$id"
+log="$log_dir/pals/$id"
+mkdir -p "$log"
 
 echo "Initiated pal $id/$comm_size. Original solver count was $num_solvers" &>> "$log/std.out"
-echo "Calculated root=$root, roof_floor=$root_floor, root_ceil=$root_ceil, comm_size=$comm_size" &>> "$log/std.out"
+echo "Calculated root=$root, roof_floor=$root_floor, root_ceil=$root_ceil, comm_size=$comm_size, expected_proxy=$expected_proxy" &>> "$log/std.out"
 echo "prepared log dir at $log" &>> "$log/std.out"
 echo "read env variables:" &>> "$log/std.out"
 echo "num_solvers: $num_solvers" &>> "$log/std.out"
@@ -77,7 +83,8 @@ fi
 # wait until conditions for reroute are met
 echo "wait until conditions for reroute are met.." &>> "$log/std.out"
 start=$(date +%s.%N)
-until [[ $(ls $proof_working/$id/*.palrup_proxy | wc -l) == $root_ceil ]]; do
+# TODO: fix for reroute only pals
+until [[ $(find $proof_working/$id -name *.palrup_proxy | wc -l) == $expected_proxy ]]; do
     sleep 0.1;
 done
 end=$(date +%s.%N)
@@ -101,9 +108,9 @@ rm $proof_working/$id/*.palrup_proxy
 if (( $id < $num_solvers )); then
 
     # wait until conditions for last pass are met
-    echo "wait until conditionss for last pass are met.." &>> "$log/std.out"
+    echo "wait until conditions for last pass are met.." &>> "$log/std.out"
     start=$(date +%s.%N)
-    until [[ $(ls $proof_working/$id/*.palrup_import | wc -l) == $root_ceil ]]; do
+    until [[ $(find $proof_working/$id -name *.palrup_import | wc -l) == $root_ceil ]]; do
         sleep 0.1;
     done
     end=$(date +%s.%N)
@@ -121,9 +128,9 @@ if (( $id < $num_solvers )); then
     command time -f "WC_TIME=%e" -a -o "$log/last_pass" $cmd &>> "$log/last_pass"
     echo "Finished last pass" &>> "$log/std.out"
 
-    #clean up proof
-    echo "clean up local proof fragment and hash in $proof_palrup/$id" &>> "$log/std.out"
-    rm $proof_palrup/$id/*
+    # clean up proof
+    echo "clean up hash of local proof fragment in $proof_palrup/$id" &>> "$log/std.out"
+    rm $proof_palrup/$id/out.palrup.hash
 
 else
     echo "Skip last pass" &>> "$log/std.out"
