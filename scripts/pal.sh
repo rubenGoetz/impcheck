@@ -61,6 +61,15 @@ echo "Begin execution" &>> "$log/std.out"
 # Only run first and last pass for original solvers.
 if (( $id < $num_solvers )); then
 
+    echo "wait until proof is finished.." &>> "$log/std.out"
+    start=$(date +%s.%N)
+    until [[ $(find $proof_palrup/$id -name out.palrup) ]]; do
+        sleep 0.1;
+    done
+    end=$(date +%s.%N)
+    elapsed=$( echo "$end - $start" | bc )
+    echo "WC_WAIT_TIME=$elapsed" &>> "$log/first_pass"
+
     # run first pass
     cmd="./build/plrat_first_pass \
     -formula-path=$formula_path -proofs-path-in=$proof_palrup \
@@ -79,7 +88,6 @@ fi
 # wait until conditions for reroute are met
 echo "wait until conditions for reroute are met.." &>> "$log/std.out"
 start=$(date +%s.%N)
-# TODO: fix for reroute only pals
 until [[ $(find $proof_working/$id -name *.palrup_proxy | wc -l) == $expected_proxy ]]; do
     sleep 0.1;
 done
