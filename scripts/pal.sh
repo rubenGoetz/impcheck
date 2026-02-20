@@ -34,15 +34,13 @@ if (( $comm_size < $num_solvers )); then
 fi
 
 # count expected inputs
-expected_proxy=$(for i in $(seq $(($id%$root_ceil)) $root_ceil $(($comm_size-1))); do if [[ $i -lt $num_solvers ]]; then echo "$i"; fi; done | wc -l)
-
+offset=$((($id/$root_ceil)*$root_ceil))
+expected_proxy=$(for i in $(seq 0 $(($root_ceil-1))); do if [[ $(($offset+$i)) -lt $num_solvers ]]; then echo "$i"; fi; done | wc -l)
 
 # Avoid edgecases in pal_launcher
 if [[ $id -ge $comm_size ]]; then exit; fi
 
-mkdir -p "$proof_working/$id"
 log="$log_dir/pals/$id"
-mkdir -p "$log"
 
 echo "Initiated pal $id/$comm_size. Original solver count was $num_solvers" &>> "$log/std.out"
 echo "Calculated root=$root, roof_floor=$root_floor, root_ceil=$root_ceil, comm_size=$comm_size, expected_proxy=$expected_proxy" &>> "$log/std.out"

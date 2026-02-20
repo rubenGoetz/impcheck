@@ -81,6 +81,12 @@ echo "num_proc_per_node: $num_proc_per_node" &>> "$log"
 echo "proof_palrup: $proof_palrup" &>> "$log"
 echo "log_dir: $log_dir" &>> "$log"
 
+echo "prepare working and log directories" &>> "$log"
+for pal_id in ${pal_id_set[@]}; do
+    if [[ $pal_id -ge $comm_size ]]; then continue; fi
+    mkdir -p "$proof_working/$pal_id"
+    mkdir -p "$log_dir/pals/$pal_id"
+done
 
 ################
 ## start pals ##
