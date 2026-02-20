@@ -33,11 +33,9 @@ if (( $comm_size < $num_solvers )); then
     comm_size=$(($root_ceil**2))
 fi
 
-# calculate expected inputs for reroute
-expected_proxy=$root_ceil
-if [[ $id -ge $(($comm_size-$root_ceil)) ]]; then
-    expected_proxy=$(($root_ceil-($comm_size-$num_solvers)))
-fi
+# count expected inputs
+expected_proxy=$(for i in $(seq $(($id%$root_ceil)) $root_ceil $(($comm_size-1))); do if [[ $i -lt $num_solvers ]]; then echo "$i"; fi; done | wc -l)
+
 
 # Avoid edgecases in pal_launcher
 if [[ $id -ge $comm_size ]]; then exit; fi
@@ -95,7 +93,7 @@ echo "WC_WAIT_TIME=$elapsed" &>> "$log/reroute"
 # run reroute
 cmd="./build/plrat_reroute \
 -proofs-path=$proof_working -num-solvers=$num_solvers -solver-id=$id \
--read-buffer-KB=$4096 -redistribution-strategy=2"
+-read-buffer-KB=4096 -redistribution-strategy=2"
 echo "run $cmd" &>> "$log/std.out"
 command time -f "WC_TIME=%e" -a -o "$log/reroute" $cmd &>> "$log/reroute"
 echo "Finished reroute" &>> "$log/std.out"

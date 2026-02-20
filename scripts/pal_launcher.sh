@@ -54,23 +54,23 @@ global_id=$(((${frag_id_set[0]}/$pals_per_proc)+$local_id))
 
 # generate list of pals corresponding to fragments on local disk
 frag_pals_start_idx=$(($local_id*$pals_per_proc))
-frag_pals_end_idx=$((($local_id+1)*$pals_per_proc))
-frag_pals=${frag_id_set[@]:frag_pals_start_idx:frag_pals_end_idx}
+frag_pals=${frag_id_set[@]:frag_pals_start_idx:pals_per_proc}
 
 # generate list of additional pals needed in reroute step
-num_comm_pals=$(((($comm_size%$num_processes)/$num_processes)+1))
+num_comm_pals=$(((($comm_size-$num_solvers)/$num_processes)+1))
 comm_pal_start_idx=$((num_solvers+(global_id*num_comm_pals)))
 comm_pal_end_idx=$(($comm_pal_start_idx+$num_comm_pals-1))
 comm_pals=($(for i in $(seq $comm_pal_start_idx $comm_pal_end_idx); do echo $i; done))
 
 # concatenated list of all pals to be spawned
-pal_id_set=($frag_pals $comm_pals)
+pal_id_set=(${frag_pals[@]} ${comm_pals[@]})
 
 # create log
 mkdir -p "$log_dir/$global_id"
 log="$log_dir/$global_id/palrup.out"
 
 echo "Initiated Pal launcher with global_id: $global_id and local_id: $local_id" &>> "$log"
+echo "num_comm_pals: $num_comm_pals" &>> "$log"
 echo "frag_pals: ${frag_pals[@]}" &>> "$log"
 echo "comm_pals: ${comm_pals[@]}" &>> "$log"
 echo "pal_id_set: ${pal_id_set[@]}" &>> "$log"
