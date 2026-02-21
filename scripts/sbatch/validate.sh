@@ -19,3 +19,8 @@ done
 if [[ $ok != "true" ]]; then exit 1; fi
 
 echo "PROOF VALIDATED"
+
+if [ -d "$1" ]; then
+    echo "PROOF VALIDATED" > "$1/success.palrup"
+fi
+

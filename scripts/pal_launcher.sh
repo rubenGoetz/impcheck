@@ -69,6 +69,9 @@ pal_id_set=(${frag_pals[@]} ${comm_pals[@]})
 mkdir -p "$log_dir/$global_id"
 log="$log_dir/$global_id/palrup.out"
 
+# Make mapping between mpi-rank and global_id possible
+echo "Created pal_launcher with global_id:$global_id, local_id:$local_id"
+
 echo "Initiated Pal launcher with global_id: $global_id and local_id: $local_id" &>> "$log"
 echo "num_comm_pals: $num_comm_pals" &>> "$log"
 echo "frag_pals: ${frag_pals[@]}" &>> "$log"
@@ -103,7 +106,7 @@ echo "All Pals returned." &>> "$log"
 # if [[ $local_id == 0 ]]; then
 #     echo "wait for local pals to be finished" &>> "$log"
 #     until [[ $(find $proof_palrup -name out.palrup | wc -l) == 0 ]]; do
-#         sleep 0.5
+#         sleep 0.2
 #     done
 #     echo "clean up $proof_palrup" &>> "$log"
 #     rm -r "$PROOF_PALRUP"
@@ -113,11 +116,11 @@ echo "All Pals returned." &>> "$log"
 if [[ $global_id == 0 ]]; then
     echo "wait for all pals to be finished" &>> "$log"
     until [[ $(find $proof_working -name .done | wc -l) == $comm_size ]]; do
-        sleep 0.5
+        sleep 0.2
     done
 
     echo "run validation validate" &>> "$log"
-    bash scripts/sbatch/validate.sh &>> "$log"
+    bash scripts/sbatch/validate.sh "$log_dir" &>> "$log"
 
     echo "clean up $proof_working" &>> "$log"
     rm -r "$proof_working"
