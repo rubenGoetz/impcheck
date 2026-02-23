@@ -77,7 +77,11 @@ if (( $id < $num_solvers )); then
     -solver-id=$id -read-buffer-KB=4096 -redistribution-strategy=2 \
     -palrup-binary=1"
     echo "run $cmd" &>> "$log/std.out" &>> "$log/std.out"
-    command time -f "WC_TIME=%e" -a -o "$log/first_pass" $cmd &>> "$log/first_pass"
+    start=$(date +%s.%N)
+    $cmd &>> "$log/first_pass"
+    end=$(date +%s.%N)
+    elapsed=$( echo "$end - $start" | bc )
+    echo "WC_TIME=$elapsed" &>> "$log/first_pass"
     echo "Finished first pass" &>> "$log/std.out"
 
 else
@@ -101,7 +105,11 @@ cmd="./build/plrat_reroute \
 -proofs-path=$proof_working -num-solvers=$num_solvers -solver-id=$id \
 -read-buffer-KB=4096 -redistribution-strategy=2"
 echo "run $cmd" &>> "$log/std.out"
-command time -f "WC_TIME=%e" -a -o "$log/reroute" $cmd &>> "$log/reroute"
+start=$(date +%s.%N)
+$cmd &>> "$log/reroute"
+end=$(date +%s.%N)
+elapsed=$( echo "$end - $start" | bc )
+echo "WC_TIME=$elapsed" &>> "$log/reroute"
 echo "Finished reroute" &>> "$log/std.out"
 
 # clean up .palrup_proxy
@@ -129,7 +137,11 @@ if (( $id < $num_solvers )); then
     -solver-id=$id -read-buffer-KB=4096 -redistribution-strategy=2 \
     -palrup-binary=1"
     echo "run $cmd" &>> "$log/std.out" &>> "$log/std.out"
-    command time -f "WC_TIME=%e" -a -o "$log/last_pass" $cmd &>> "$log/last_pass"
+    start=$(date +%s.%N)
+    $cmd &>> "$log/last_pass"
+    end=$(date +%s.%N)
+    elapsed=$( echo "$end - $start" | bc )
+    echo "WC_TIME=$elapsed" &>> "$log/last_pass"
     echo "Finished last pass" &>> "$log/std.out"
 
     # clean up proof

@@ -9,6 +9,9 @@
 
 start=$(date +%s.%N)
 
+# set to true if proof is written on distributed local disks
+use_local_disks=""
+
 num_solvers=$NUM_SOLVERS
 num_nodes=$NUM_NODES
 num_proc_per_node=$NUM_PROCS_PER_NODE
@@ -16,13 +19,25 @@ proof_palrup=$PROOF_PALRUP
 proof_working=$PROOF_WORKING
 log_dir=$LOG_DIR
 
-# get local id on node
-for i in $(seq 0 $(($num_proc_per_node-1))); do
-    if mkdir /tmp/.pal_launcher.$i.lock 2>/dev/null ; then
-        local_id=$i
-        break;
-    fi
-done
+num_processes=$(($num_nodes*$num_proc_per_node))
+
+if [[ $use_local_disks == "true" ]]; then
+    # get local id on node
+    for i in $(seq 0 $(($num_proc_per_node-1))); do
+        if mkdir /tmp/.pal_launcher.$i.lock 2>/dev/null ; then
+            local_id=$i
+            break
+        fi
+    done
+else
+    for i in $(seq 0 $(($num_processes-1))); do
+        if mkdir $proof_working/.pal_launcher.$i.lock 2>/dev/null ; then
+            global_id=$i
+            local_id=$i
+            break
+        fi
+    done
+fi
 
 # fail save
 if [[ ! $local_id ]]; then
@@ -42,15 +57,15 @@ fi
 ##########################################
 ## Calculate list of pals to be spawned ##
 ##########################################
-# get fragments on local disk
+# get fragments on locally readable disk
 # soring is not strictly necessary but helps with debugging
 frag_id_set=($( ls "$proof_palrup" | sort -n ))
-num_fragments=$((${#frag_id_set[@]}/$num_proc_per_node))
-
-# calculate global id
-num_processes=$(($num_nodes*$num_proc_per_node))
 pals_per_proc=$(($num_solvers/$num_processes))
-global_id=$(((${frag_id_set[0]}/$pals_per_proc)+$local_id))
+
+# global_id is still undefined for distributed disks
+if [[ $use_local_disks == "true" ]]; then
+    global_id=$(((${frag_id_set[0]}/$pals_per_proc)+$local_id))
+fi
 
 # generate list of pals corresponding to fragments on local disk
 frag_pals_start_idx=$(($local_id*$pals_per_proc))
@@ -82,6 +97,7 @@ echo "num_solvers: $num_solvers" &>> "$log"
 echo "num_nodes: $num_nodes" &>> "$log"
 echo "num_proc_per_node: $num_proc_per_node" &>> "$log"
 echo "proof_palrup: $proof_palrup" &>> "$log"
+echo "proof_working: $proof_working" &>> "$log"
 echo "log_dir: $log_dir" &>> "$log"
 
 echo "prepare working and log directories" &>> "$log"
