@@ -69,6 +69,7 @@ if (( $id < $num_solvers )); then
     end=$(date +%s.%N)
     elapsed=$( echo "$end - $start" | bc )
     echo "WC_WAIT_TIME=$elapsed" &>> "$log/first_pass"
+    echo "READ_PALRUP_SIZE=$(wc -c $proof_palrup/$id/out.palrup)" &>> "$log/first_pass"
 
     # run first pass
     cmd="./build/plrat_first_pass \
@@ -98,7 +99,7 @@ done
 end=$(date +%s.%N)
 elapsed=$( echo "$end - $start" | bc )
 echo "WC_WAIT_TIME=$elapsed" &>> "$log/reroute"
-
+echo "READ_PROXY_SIZE=$(wc -c $proof_working/$id/*.palrup_proxy | grep -E "total")" &>> "$log/reroute"
 
 # run reroute
 cmd="./build/plrat_reroute \
@@ -128,7 +129,7 @@ if (( $id < $num_solvers )); then
     end=$(date +%s.%N)
     elapsed=$( echo "$end - $start" | bc )
     echo "WC_WAIT_TIME=$elapsed" &>> "$log/last_pass"
-
+    echo "READ_IMPORT_SIZE=$(wc -c $proof_working/$id/*.palrup_import | grep -E "total")" &>> "$log/last_pass"
 
     # run last pass
     cmd="./build/plrat_last_pass \
