@@ -1,5 +1,12 @@
 #include "import_merger.h"
 #include "plrat_file_reader.h"
+#include "trusted_utils.h"
+
+struct merger_stats {
+    u64 nb_read;
+    u64 nb_duplicates;
+} merger_stats_init = {0, 0};
+struct merger_stats stats;
 
 const u64 _im_empty_ID = -1;
 
@@ -36,6 +43,7 @@ void load_clause_if_available(int index) {
         } else if (_im_check_comm_sig != NULL) {
             comm_sig_update_clause(_im_check_comm_sig[index], _im_clause_ids[index], _im_all_lits[index]->data, nb_lits);
         }
+        stats.nb_read++;
     } else {
         _im_clause_ids[index] = -1;
     }
@@ -58,6 +66,7 @@ void import_merger_init(int count_input_files, char** file_paths, u64* current_i
     _im_all_lits = trusted_utils_malloc(sizeof(struct int_vec*) * _im_n_files);
     _im_import_files = trusted_utils_malloc(sizeof(struct plrat_reader*) * _im_n_files);
     _im_left_clauses = trusted_utils_malloc(sizeof(int) * _im_n_files);
+    stats = merger_stats_init;
     for (size_t i = 0; i < _im_n_files; i++) {
         // plrat_utils_log(file_paths[i]);
         
@@ -74,6 +83,12 @@ void import_merger_init(int count_input_files, char** file_paths, u64* current_i
     }
 }
 
+static void print_stats() {
+    char msg[512];
+    snprintf(msg, 512, "merger_stats nb_read:%lu, nb_duplicates:%lu", stats.nb_read, stats.nb_duplicates);
+    trusted_utils_log(msg);
+}
+
 void import_merger_end() {
     for (size_t i = 0; i < _im_n_files; i++) {
         plrat_reader_end(_im_import_files[i]);
@@ -83,6 +98,7 @@ void import_merger_end() {
     free(_im_all_lits);
     free(_im_clause_ids);
     free(_im_left_clauses);
+    print_stats();
 }
 
 void import_merger_next() {
@@ -111,6 +127,7 @@ void import_merger_next() {
                 plrat_utils_log_err(err_str);
                 exit(1);
             }
+            stats.nb_duplicates++;
             load_clause_if_available(i);
         }
     }

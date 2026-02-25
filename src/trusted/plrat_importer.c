@@ -26,6 +26,15 @@
 #define unit_static static
 #endif
 
+struct importer_stats {
+    u64 nb_clauses;
+    u64 nb_duplicates;
+    u64 nb_flushes;
+    u64 nb_file_merges;
+} importer_stats_init = {0, 0, 0, 0};
+
+struct importer_stats stats; 
+
 const char* out_path;  // named pipe
 u64 n_solvers;         // number of solvers
 double root_n;         // square root of number of solvers
@@ -41,8 +50,6 @@ FILE** out_files;
 char** file_names;  // to be removed. uses for file shenanigans
 u64* clause_counts; // count clauses contained in each file
 struct merge_buffer* merge_buffer;
-
-// TODO: gather stats
 
 #ifdef UNIT_TEST
 FILE* get_plrat_importer_out_file() {
@@ -124,6 +131,7 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
     clause_counts = trusted_utils_calloc(comm_size, sizeof(u64));
     signatures = trusted_utils_malloc(sizeof(struct comm_sig*) * comm_size);
     merge_buffer = merge_buffer_init(write_buffer_size, NULL);
+    stats = importer_stats_init;
 
     if (local_rank == 0) {
         char msg[512];
@@ -178,6 +186,7 @@ unit_static void skip_heap_duplicates(clause_ptr c, struct clause_heap* heap) {
         }
         
         delete_flat_clause(heap_pop_min(heap));
+        stats.nb_duplicates++;
         if (heap->size <= 0)
             break;
         next_c = heap_get_min(heap);
@@ -188,6 +197,7 @@ unit_static void skip_heap_duplicates(clause_ptr c, struct clause_heap* heap) {
 unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id, float flush_ratio) {
     if (clause_heap->size <= 0)
         return;
+    stats.nb_flushes++;
     unsigned long* max_id = &(max_ids[file_id]);
     FILE* write_ptr = out_files[file_id];
     clause_ptr c = heap_get_min(clause_heap);
@@ -210,6 +220,7 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
             delete_flat_clause(c);
         }
     } else {    // merge file with heap to assure sorted clauses in file 
+        stats.nb_file_merges++;
         merge_buffer_open_file(merge_buffer, file_names[file_id]);
         merge_buffer_set_file_pointer(merge_buffer, get_merge_file_pos(get_clause_id(c), write_ptr));
 
@@ -236,6 +247,7 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
                 min_clause = file_clause;
                 file_clause = merge_buffer_next_clause(merge_buffer);
                 delete_flat_clause(heap_clause);
+                stats.nb_duplicates++;
                 heap_clause = heap_pop_min(clause_heap);
                 skip_heap_duplicates(heap_clause, clause_heap);
             } else {
@@ -270,6 +282,12 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
     }
 }
 
+static void print_stats() {
+    char msg[512];
+    snprintf(msg, 512, "importer_stats nb_clauses:%lu, nb_duplicates:%lu, nb_flushes:%lu, nb_file_merges:%lu", stats.nb_clauses, stats.nb_duplicates, stats.nb_flushes, stats.nb_file_merges);
+    trusted_utils_log(msg);
+}
+
 void plrat_importer_end() {
     for (size_t i = 0; i < comm_size; i++) {
         flush_heap_to_file(clause_heaps[i], i, 0);
@@ -301,12 +319,14 @@ void plrat_importer_end() {
     free(max_ids);
     free(signatures);
     merge_buffer_free(merge_buffer);
+    print_stats();
 }
 
 void plrat_importer_log(unsigned long id, const int* literals, int nb_literals) {
     int file_id = plrat_utils_rank_to_x(id % n_solvers, comm_size);
     clause_ptr _clause = create_flat_clause(id, nb_literals, literals);
     struct clause_heap* clause_heap = clause_heaps[file_id];
+    stats.nb_clauses++;
 
     // write to file if capacity is reached
     if (heap_insert(clause_heap, _clause)) {
