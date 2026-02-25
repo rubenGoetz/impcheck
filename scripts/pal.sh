@@ -19,7 +19,17 @@ proof_palrup=$PROOF_PALRUP
 proof_working=$PROOF_WORKING
 formula_path=$FORMULA_PATH
 log_dir=$LOG_DIR
+timeout=$TIMEOUT
 
+glob_start=$(date +%s.%N)
+check_timeout() {
+    curr_time=$(date +%s.%N)
+    if (( $( echo "($curr_time - $glob_start) > $timeout" | bc ) )); then
+        echo "TIMEOUT in pal $id/$comm_size with message: \"$1\""
+        echo "TIMEOUT" &>> "$log/std.out"
+        exit 1
+    fi
+}
 
 ##########
 ## init ##
@@ -51,6 +61,7 @@ echo "proof_palrup: $proof_palrup" &>> "$log/std.out"
 echo "proof_working: $proof_working" &>> "$log/std.out"
 echo "formula_path: $formula_path" &>> "$log/std.out"
 echo "log_dir: $log_dir" &>> "$log/std.out"
+echo "timeout: $timeout" &>> "$log/std.out"
 
 #############
 ## run pal ##
@@ -64,6 +75,7 @@ if (( $id < $num_solvers )); then
     echo "wait until proof is finished.." &>> "$log/std.out"
     start=$(date +%s.%N)
     until [[ $(find $proof_palrup/$id -name out.palrup) ]]; do
+        check_timeout "wait until proof is finished.."
         sleep 0.1;
     done
     end=$(date +%s.%N)
@@ -94,6 +106,7 @@ fi
 echo "wait until conditions for reroute are met.." &>> "$log/std.out"
 start=$(date +%s.%N)
 until [[ $(find $proof_working/$id -name *.palrup_proxy | wc -l) == $expected_proxy ]]; do
+    check_timeout "wait until conditions for reroute are met.."
     sleep 0.1;
 done
 end=$(date +%s.%N)
@@ -124,6 +137,7 @@ if (( $id < $num_solvers )); then
     echo "wait until conditions for last pass are met.." &>> "$log/std.out"
     start=$(date +%s.%N)
     until [[ $(find $proof_working/$id -name *.palrup_import | wc -l) == $root_ceil ]]; do
+        check_timeout "wait until conditions for last pass are met.."
         sleep 0.1;
     done
     end=$(date +%s.%N)

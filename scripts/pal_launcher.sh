@@ -18,6 +18,17 @@ num_proc_per_node=$NUM_PROCS_PER_NODE
 proof_palrup=$PROOF_PALRUP
 proof_working=$PROOF_WORKING
 log_dir=$LOG_DIR
+timeout=$TIMEOUT
+
+glob_start=$(date +%s.%N)
+check_timeout() {
+    curr_time=$(date +%s.%N)
+    if (( $( echo "($curr_time - $glob_start) > $timeout" | bc ) )); then
+        echo "TIMEOUT in process of global_id=$global_id"
+        echo "TIMEOUT" &>> "$log"
+        exit 1
+    fi
+}
 
 num_processes=$(($num_nodes*$num_proc_per_node))
 
@@ -132,6 +143,7 @@ echo "All Pals returned." &>> "$log"
 if [[ $global_id == 0 ]]; then
     echo "wait for all pals to be finished" &>> "$log"
     until [[ $(find $proof_working -name .done | wc -l) == $comm_size ]]; do
+        check_timeout
         sleep 0.2
     done
 
