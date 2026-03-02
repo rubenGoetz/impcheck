@@ -83,12 +83,12 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
     }
     out_path = main_path;
     local_rank = solver_rank;
+    unsigned int dir_hierarchy = local_rank / comm_size;
     _bu_output_files = trusted_utils_malloc(sizeof(FILE*) * comm_size);
     file_names = trusted_utils_calloc(comm_size, sizeof(char*));
     _re_count_clauses = trusted_utils_calloc(comm_size, sizeof(u64));
     out_hash = trusted_utils_malloc(sizeof(struct siphash*) * comm_size);
     comm_sig_compute = trusted_utils_malloc(sizeof(struct comm_sig*) * comm_size);
-    // printf("local rank: %lu, num solvers: %lu\n", local_rank, n_solvers);
     char msg[512];
     snprintf(msg, 512, "root_n:%f", root_n);
     if (local_rank == 0) plrat_utils_log(msg);
@@ -96,7 +96,8 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
         char folder_path[512];
         char tmp_path[1024];
 
-        snprintf(folder_path, 512, "%s/%lu", out_path, plrat_reroute_get_destination_rank(i));
+        u64 dest_rank = plrat_reroute_get_destination_rank(i);
+        snprintf(folder_path, 512, "%s/%lu/%lu", out_path, dest_rank / comm_size, dest_rank);
         mkdir(folder_path, 0755);
         snprintf(tmp_path, 1024, "%s/%lu.palrup_import~", folder_path, plrat_utils_rank_to_y(local_rank, comm_size));
         file_names[i] = trusted_utils_calloc(1024, sizeof(char));
@@ -117,7 +118,7 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
     
     for (size_t i = 0; i < comm_size; i++) {
         file_paths[i] = trusted_utils_malloc(512);
-        snprintf(file_paths[i], 512, "%s/%lu/%lu.palrup_proxy", out_path, local_rank, i);
+        snprintf(file_paths[i], 512, "%s/%u/%lu/%lu.palrup_proxy", out_path, dir_hierarchy, local_rank, i);
         if (access(file_paths[i], F_OK) != 0) {
             // file doesn't exist
             // create placeholder file containing only 0

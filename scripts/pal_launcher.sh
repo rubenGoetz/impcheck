@@ -70,11 +70,12 @@ fi
 ##########################################
 # get fragments on locally readable disk
 # soring is not strictly necessary but helps with debugging
-frag_id_set=($( ls "$proof_palrup" | sort -n ))
+frag_id_set=($(seq 0 $(($num_solvers-1))))
 pals_per_proc=$(($num_solvers/$num_processes))
 
 # global_id is still undefined for distributed disks
 if [[ $use_local_disks == "true" ]]; then
+    frag_id_set=($( ls "$proof_palrup" | sort -n ))
     global_id=$(((${frag_id_set[0]}/$pals_per_proc)+$local_id))
 fi
 
@@ -110,12 +111,15 @@ echo "num_proc_per_node: $num_proc_per_node" &>> "$log"
 echo "proof_palrup: $proof_palrup" &>> "$log"
 echo "proof_working: $proof_working" &>> "$log"
 echo "log_dir: $log_dir" &>> "$log"
+echo "timeout: $timeout" &>> "$log"
 
 echo "prepare working and log directories" &>> "$log"
 for pal_id in ${pal_id_set[@]}; do
     if [[ $pal_id -ge $comm_size ]]; then continue; fi
-    mkdir -p "$proof_working/$pal_id"
-    mkdir -p "$log_dir/pals/$pal_id"
+    dir_hierarchy=$(($pal_id/$root_floor))
+    dir_hierarchy=${dir_hierarchy%.*}
+    mkdir -p "$proof_working/$dir_hierarchy/$pal_id"
+    mkdir -p "$log_dir/pals/$dir_hierarchy/$pal_id"
 done
 
 ################

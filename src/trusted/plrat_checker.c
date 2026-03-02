@@ -2,6 +2,7 @@
 #include "plrat_checker.h"  // for plrat_reader_read_int, trusted_utils_log...
 
 #include <assert.h>
+#include <math.h>
 #include <stdbool.h>  // for bool, true, false
 #include <stdio.h>    // for fclose, fflush_unlocked, fopen, snprintf
 #include <stdlib.h>   // for free
@@ -368,7 +369,13 @@ void pc_init(const char* formula_path, const char* proofs_path_in, const char* p
     FILE* formular;
     palrup_binary = use_palrup_binary;
     clause_hash = siphash_cls_init(SECRET_KEY);
-    snprintf(proof_path_in, 512, "%s/%lu/out.palrup", proofs_path_in, solver_id);
+    double root_n = sqrt((double)num_solvers);
+    size_t comm_size = (size_t)ceil(root_n);  // round to nearest integer
+    if (redistribution_strategy == 1) {
+        comm_size = num_solvers;
+    }
+    unsigned int dir_hierarchy = solver_id / comm_size;
+    snprintf(proof_path_in, 512, "%s/%u/%lu/out.palrup", proofs_path_in, dir_hierarchy, solver_id);
     snprintf(redestribute_path_out, 512, "%s", proofs_path_out);
 
     if (access(proof_path_in, F_OK) != 0) {

@@ -124,6 +124,7 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
     }
     out_path = main_path;
     local_rank = solver_id;
+    unsigned int dir_hierarchy = local_rank / comm_size;
     clause_heaps = trusted_utils_malloc(sizeof(struct clause_heap*) * comm_size);
     max_ids = trusted_utils_calloc(comm_size, sizeof(unsigned long));
     out_files = trusted_utils_malloc(sizeof(FILE*) * comm_size);
@@ -144,7 +145,7 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
         char ids_path[1024];
         u64 proxy_rank = plrat_importer_get_proxy_rank(i);
         if (redist_strat == 2) {
-            snprintf(proof_folder, 512, "%s/%lu", out_path, proxy_rank);
+            snprintf(proof_folder, 512, "%s/%u/%lu", out_path, dir_hierarchy, proxy_rank);
         } else {
             snprintf(proof_folder, 512, "%s/%lu", out_path, i);
         }

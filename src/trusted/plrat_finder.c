@@ -336,13 +336,14 @@ void plrat_finder_init(const char* main_path, const char* imports_path, unsigned
         comm_size = n_solvers;
     }
     local_rank = solver_id;
+    unsigned int dir_hierarchy = local_rank / comm_size;
     proof_lits = int_vec_init(1);
 
-    snprintf(confirm_folder, 512, "%s/%lu/.check_ok", imports_path, local_rank);
+    snprintf(confirm_folder, 512, "%s/%u/%lu/.check_ok", imports_path, dir_hierarchy, local_rank);
 
     char proof_path[768];
     char finger_print_path[1024];
-    snprintf(proof_path, 768, "%s/%lu/out.palrup", main_path, local_rank);
+    snprintf(proof_path, 768, "%s/%u/%lu/out.palrup", main_path, dir_hierarchy, local_rank);
     snprintf(finger_print_path, 1024, "%s.hash", proof_path);
     my_proof = fopen(proof_path, "rb");
     FILE* finger_print = fopen(finger_print_path, "rb");
@@ -363,7 +364,7 @@ void plrat_finder_init(const char* main_path, const char* imports_path, unsigned
 
     for (size_t i = 0; i < comm_size; i++) {
         file_paths[i] = trusted_utils_malloc(768);
-        snprintf(file_paths[i], 768, "%s/%lu/%lu.palrup_import", imports_path, local_rank, i);
+        snprintf(file_paths[i], 768, "%s/%u/%lu/%lu.palrup_import", imports_path, dir_hierarchy, local_rank, i);
 
         import_check_hash[i] = siphash_cls_init(SECRET_KEY);
     }
