@@ -105,7 +105,7 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
         _bu_output_files[i] = fopen(tmp_path, "wb");
 
         if (!(_bu_output_files[i])) trusted_utils_exit_eof();
-        plrat_reroute_write_int(0, _bu_output_files[i]);  // write placeholder 0 for count of clauses
+        //plrat_reroute_write_int(0, _bu_output_files[i]);  // write placeholder 0 for count of clauses
 
         out_hash[i] = siphash_cls_init(SECRET_KEY);
         comm_sig_compute[i] = comm_sig_init(SECRET_KEY_2);
@@ -123,7 +123,7 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
             // file doesn't exist
             // create placeholder file containing only 0
             FILE* f = fopen(file_paths[i], "wb");
-            trusted_utils_write_int(0, f);      // write placeholder 0 for count of clauses
+            trusted_utils_write_ul(0, f);      // write EOF flag
             trusted_utils_write_sig(sig, f);    // write placeholder signature
             fclose(f);
         }
@@ -163,11 +163,12 @@ void plrat_reroute_end() {
         free(computed_incoming_sig);
 
         u8* sig = siphash_cls_digest(out_hash[i]);
+        trusted_utils_write_ul(0,_bu_output_files[i]);  // mark end of clauses
         trusted_utils_write_sig(sig, _bu_output_files[i]);
 
-        fseek(_bu_output_files[i], 0, SEEK_SET);
-        plrat_reroute_write_int(_re_count_clauses[i], _bu_output_files[i]);
-        fsync(fileno(_bu_output_files[i]));
+        //fseek(_bu_output_files[i], 0, SEEK_SET);
+        //plrat_reroute_write_int(_re_count_clauses[i], _bu_output_files[i]);
+        //fsync(fileno(_bu_output_files[i]));
         fclose(_bu_output_files[i]);
         int new_str_len = strlen(file_names[i])-1;
         char new_filename[new_str_len];

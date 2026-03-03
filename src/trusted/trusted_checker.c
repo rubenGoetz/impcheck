@@ -78,7 +78,7 @@ void tc_init(const char* fifo_in, const char* fifo_out, u64 num_solvers, u64 glo
 void tc_end() {
     free(buf_hints);
     free(buf_lits);
-    fsync(fileno(output));
+    //fsync(fileno(output));
     fclose(output);
     fclose(input);
     plrat_utils_end_debug();

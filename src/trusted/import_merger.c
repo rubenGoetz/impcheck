@@ -11,6 +11,8 @@ struct merger_stats stats;
 const u64 _im_empty_ID = -1;
 
 size_t _im_n_files;
+// used to store nb_clauses left to read in a file.
+// redesigned to act as "eof-reached" flag
 int* _im_left_clauses;
 u64* _im_clause_ids;
 struct int_vec** _im_all_lits;
@@ -34,9 +36,14 @@ void load_clause_if_available(int index) {
     if (MALLOB_LIKELY(_im_left_clauses[index] > 0)) {
         struct plrat_reader* file = _im_import_files[index];
         _im_clause_ids[index] = plrat_reader_read_ul(file);
+        // no clauses left
+        if (_im_clause_ids[index] == 0) {
+            _im_clause_ids[index] = -1;
+            return;
+        }
         int nb_lits = plrat_reader_read_int(file);
         read_literals_index(index, nb_lits);
-        _im_left_clauses[index] -= 1;
+        //_im_left_clauses[index] -= 1;
         if (_im_check_hash != NULL) {
             siphash_cls_update(_im_check_hash[index], (const u8*)&_im_clause_ids[index], sizeof(u64));
             siphash_cls_update(_im_check_hash[index], (const u8*)_im_all_lits[index]->data, _im_all_lits[index]->size * sizeof(int));
@@ -73,7 +80,7 @@ void import_merger_init(int count_input_files, char** file_paths, u64* current_i
         _im_import_files[i] = plrat_reader_init(read_buffer_size, fopen(file_paths[i], "rb"), -1);
         if (!(_im_import_files[i])) trusted_utils_exit_eof();
         _im_all_lits[i] = int_vec_init(1);
-        _im_left_clauses[i] = plrat_reader_read_int(_im_import_files[i]);
+        _im_left_clauses[i] = 1; //plrat_reader_read_int(_im_import_files[i]);
         
     }
     // load the first clause of each file exept for 0

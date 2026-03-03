@@ -168,7 +168,7 @@ void parse(u64* nb_produced, u64* nb_imported, u64* nb_deleted) {
             }
                 
             trusted_utils_write_sig(sig, finger_print);
-            fsync(fileno(finger_print));
+            //fsync(fileno(finger_print));
             fclose(finger_print);
 
             break;

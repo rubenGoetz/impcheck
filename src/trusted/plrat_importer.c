@@ -72,7 +72,7 @@ void set_plrat_importer_max_id(unsigned long id) {
 // TODO: Add dedicated unit tests
 static u64 get_merge_file_pos(u64 clause_id, FILE* file) {
     rewind(file);
-    trusted_utils_read_int(file);
+    //trusted_utils_read_int(file);
 
     while (true) {
         u64 id = trusted_utils_read_ul(file);
@@ -166,7 +166,7 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
             snprintf(msg, 1048, "out_files not created: %s\n", ids_path);
             plrat_utils_log_err(msg);
         }
-        trusted_utils_write_int(0, out_files[i]);   // placeholder to insert number of clauses in file
+        // trusted_utils_write_int(0, out_files[i]);   // placeholder to insert number of clauses in file
         file_names[i] = trusted_utils_calloc(1024, sizeof(char));
         memcpy(file_names[i], ids_path, 1024);
 
@@ -294,17 +294,18 @@ void plrat_importer_end() {
         flush_heap_to_file(clause_heaps[i], i, 0);
         assert(clause_heaps[i]->size == 0);
         u8* sig = comm_sig_digest(signatures[i]);
+        trusted_utils_write_ul(0,out_files[i]);
         plrat_importer_write_hash(sig, out_files[i]);
         // write clause count to beginning of file
-        fseek(out_files[i], 0, SEEK_SET);
-        trusted_utils_write_int(clause_counts[i], out_files[i]);
+        //fseek(out_files[i], 0, SEEK_SET);
+        //trusted_utils_write_int(clause_counts[i], out_files[i]);
         comm_sig_free(signatures[i]);
         free(sig);
     }
 
     for (size_t i = 0; i < comm_size; i++) {
         heap_free(clause_heaps[i]);
-        fsync(fileno(out_files[i]));
+        //fsync(fileno(out_files[i]));
         fclose(out_files[i]);
         int new_str_len = strlen(file_names[i])-1;
         char new_filename[new_str_len];
