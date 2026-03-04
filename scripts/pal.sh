@@ -89,7 +89,7 @@ if (( $id < $num_solvers )); then
     cmd="./build/plrat_first_pass \
     -formula-path=$formula_path -proofs-path-in=$proof_palrup \
     -proofs-path-out=$proof_working -num-solvers=$num_solvers \
-    -solver-id=$id -read-buffer-KB=4096 -redistribution-strategy=2 \
+    -solver-id=$id -read-buffer-KB=16384 -redistribution-strategy=2 \
     -palrup-binary=1"
     echo "run $cmd" &>> "$log/std.out" &>> "$log/std.out"
     start=$(date +%s.%N)
@@ -119,7 +119,7 @@ echo "READ_PROXY_SIZE=$(wc -c $proof_working/$dir_hierarchy/$id/*.palrup_proxy |
 # run reroute
 cmd="./build/plrat_reroute \
 -proofs-path=$proof_working -num-solvers=$num_solvers -solver-id=$id \
--read-buffer-KB=4096 -redistribution-strategy=2"
+-read-buffer-KB=16384 -redistribution-strategy=2"
 echo "run $cmd" &>> "$log/std.out"
 start=$(date +%s.%N)
 $cmd &>> "$log/reroute"
@@ -151,7 +151,7 @@ if (( $id < $num_solvers )); then
     cmd="./build/plrat_last_pass \
     -formula-path=$formula_path -proofs-path=$proof_palrup \
     -imports-path=$proof_working -num-solvers=$num_solvers \
-    -solver-id=$id -read-buffer-KB=4096 -redistribution-strategy=2 \
+    -solver-id=$id -read-buffer-KB=16384 -redistribution-strategy=2 \
     -palrup-binary=1"
     echo "run $cmd" &>> "$log/std.out" &>> "$log/std.out"
     start=$(date +%s.%N)
