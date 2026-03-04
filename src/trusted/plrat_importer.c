@@ -20,11 +20,20 @@
 #include "heap.h"
 #include "merge_buffer.h"
 
+#define TYPE u8
+#define TYPED(THING) u8_ ## THING
+#include "vec.h"
+#undef TYPED
+#undef TYPE
+
 #ifdef UNIT_TEST
 #define unit_static
 #else
 #define unit_static static
 #endif
+
+// Blocksize of underlying filesystem for more effizient writing.
+#define BLOCKSIZE 16 * 1024
 
 struct importer_stats {
     u64 nb_clauses;
@@ -44,6 +53,7 @@ u64 redist_strat;  // redistribution_strategy
 u64 local_rank;    // solver id
 
 // Buffering.
+struct u8_vec* write_buffer;
 struct clause_heap** clause_heaps;
 unsigned long* max_ids;
 FILE** out_files;
@@ -133,7 +143,7 @@ void plrat_importer_init(const char* main_path, unsigned long solver_id, unsigne
     signatures = trusted_utils_malloc(sizeof(struct comm_sig*) * comm_size);
     merge_buffer = merge_buffer_init(write_buffer_size, NULL);
     stats = importer_stats_init;
-
+    write_buffer = u8_vec_init(BLOCKSIZE);
 
     char proof_folder[512];
     char ids_path[1024];
@@ -215,6 +225,16 @@ unit_static void skip_heap_duplicates(clause_ptr c, struct clause_heap* heap) {
     }
 }
 
+static void write_buffer_to_file(FILE* file) {
+    if (write_buffer->size == 0)
+        return;
+
+    u64 nb_written = UNLOCKED_IO(fwrite)(write_buffer->data, write_buffer->size, 1, file);
+    if (nb_written < 1) trusted_utils_exit_eof();
+
+    u8_vec_resize(write_buffer, 0);
+}
+
 // flush_ratio \in [0,1] denotes the maximum fill level of the heap after the flush operation
 unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id, float flush_ratio) {
     if (clause_heap->size <= 0)
@@ -233,7 +253,12 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
             skip_heap_duplicates(c, clause_heap);
 
             // write clause to file and remove from heap
-            write_flat_clause_to_file(c, write_ptr);
+            //write_flat_clause_to_file(c, write_ptr);
+            if (write_buffer->size + get_clause_size(c) > write_buffer->capacity)
+                write_buffer_to_file(write_ptr);
+            memcpy(write_buffer->data + write_buffer->size, c, get_clause_size(c));
+            write_buffer->size += get_clause_size(c);
+            
             clause_counts[file_id]++;
             comm_sig_update_clause(signatures[file_id],
                                    get_clause_id(c),
@@ -242,8 +267,14 @@ unit_static void flush_heap_to_file(struct clause_heap* clause_heap, int file_id
             *max_id = get_clause_id(c);
             delete_flat_clause(c);
         }
+        if (redist_strat != 3)
+            write_buffer_to_file(write_ptr);
     } else {    // merge file with heap to assure sorted clauses in file 
         stats.nb_file_merges++;
+        
+        // with strat 3 the buffer might not be empty
+        if (redist_strat == 3)
+            write_buffer_to_file(write_ptr);
         merge_buffer_open_file(merge_buffer, file_names[file_id]);
         merge_buffer_set_file_pointer(merge_buffer, get_merge_file_pos(get_clause_id(c), write_ptr));
 
@@ -320,6 +351,7 @@ void plrat_importer_end() {
     for (size_t i = 0; i < effective_comm_size; i++) {
         flush_heap_to_file(clause_heaps[i], i, 0);
         assert(clause_heaps[i]->size == 0);
+        write_buffer_to_file(out_files[i]);
         u8* sig = comm_sig_digest(signatures[i]);
         trusted_utils_write_ul(0,out_files[i]);
         plrat_importer_write_hash(sig, out_files[i]);
@@ -346,6 +378,7 @@ void plrat_importer_end() {
     free(clause_heaps);
     free(max_ids);
     free(signatures);
+    u8_vec_free(write_buffer);
     merge_buffer_free(merge_buffer);
     print_stats();
 }

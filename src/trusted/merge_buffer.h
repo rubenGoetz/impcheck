@@ -2,7 +2,6 @@
 #ifndef MERGE_BUFFER_H
 #define MERGE_BUFFER_H
 
-#include "vec.h"
 #include "clause_flat.h"
 
 struct merge_buffer {

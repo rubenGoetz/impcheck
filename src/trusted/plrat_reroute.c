@@ -22,6 +22,15 @@
 #include "siphash_cls.h"
 #include "top_check.h"  // for top_check_commit_formula_sig, top_check_d...
 
+#define TYPE u8
+#define TYPED(THING) u8_ ## THING
+#include "vec.h"
+#undef TYPED
+#undef TYPE
+
+// Blocksize of underlying filesystem for more effizient writing.
+#define BLOCKSIZE 16 * 1024
+
 const char* out_path;  // named pipe
 u64 n_solvers;         // number of solvers
 double root_n;         // square root of number of solvers
@@ -31,6 +40,7 @@ u64 local_rank;    // solver id
 const u64 empty_ID = -1;
 
 // Buffering.
+struct u8_vec* write_buffer;
 int* _re_current_literals_data;
 u64 _re_current_literals_size;
 u64 _re_current_ID = empty_ID;
@@ -39,6 +49,20 @@ FILE** _bu_output_files;
 char** file_names;
 struct siphash** out_hash;
 struct comm_sig** comm_sig_compute;
+
+static inline size_t get_clause_size(int nb_literals) {
+    return sizeof(u64) + sizeof(int) + nb_literals * sizeof(int);
+}
+
+static void write_buffer_to_file(FILE* file) {
+    if (write_buffer->size == 0)
+        return;
+
+    u64 nb_written = UNLOCKED_IO(fwrite)(write_buffer->data, write_buffer->size, 1, file);
+    if (nb_written < 1) trusted_utils_exit_eof();
+
+    u8_vec_resize(write_buffer, 0);
+}
 
 void plrat_reroute_write_lrat_import_file(u64 clause_id, int* literals, int nb_literals, FILE* current_out) {
     if (redist_strat == 0) {
@@ -52,9 +76,23 @@ void plrat_reroute_write_lrat_import_file(u64 clause_id, int* literals, int nb_l
         fprintf(current_out, "%i", 0);
         fprintf(current_out, "\n");
     } else {
-        trusted_utils_write_ul(clause_id, current_out);
-        trusted_utils_write_int(nb_literals, current_out);
-        trusted_utils_write_ints(literals, nb_literals, current_out);
+        //trusted_utils_write_ul(clause_id, current_out);
+        //trusted_utils_write_int(nb_literals, current_out);
+        //trusted_utils_write_ints(literals, nb_literals, current_out);
+        if (write_buffer->size + get_clause_size(nb_literals) > write_buffer->capacity)
+            write_buffer_to_file(current_out);
+
+        //write_buffer->data[write_buffer->size] = clause_id;
+        memcpy(write_buffer->data + write_buffer->size, &clause_id, sizeof(u64));
+        write_buffer->size += sizeof(u64);
+        //write_buffer->data[write_buffer->size] = nb_literals;
+        memcpy(write_buffer->data + write_buffer->size, &nb_literals, sizeof(int));
+        write_buffer->size += sizeof(int);
+        memcpy(write_buffer->data + write_buffer->size, literals, nb_literals * sizeof(int));
+        write_buffer->size += nb_literals * sizeof(int);
+
+        if (redist_strat != 3)
+            write_buffer_to_file(current_out);
     }
 }
 
@@ -89,6 +127,8 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
     _re_count_clauses = trusted_utils_calloc(comm_size, sizeof(u64));
     out_hash = trusted_utils_malloc(sizeof(struct siphash*) * comm_size);
     comm_sig_compute = trusted_utils_malloc(sizeof(struct comm_sig*) * comm_size);
+    write_buffer = u8_vec_init(BLOCKSIZE);
+
     char msg[512];
     snprintf(msg, 512, "root_n:%f", root_n);
     if (local_rank == 0) plrat_utils_log(msg);
@@ -183,6 +223,7 @@ void plrat_reroute_end() {
         effective_comm_size = 1;
     
     for (size_t i = 0; i < effective_comm_size; i++) {
+        write_buffer_to_file(_bu_output_files[i]);
         u8* sig = siphash_cls_digest(out_hash[i]);
         trusted_utils_write_ul(0,_bu_output_files[i]);  // mark end of clauses
         trusted_utils_write_sig(sig, _bu_output_files[i]);
@@ -203,6 +244,7 @@ void plrat_reroute_end() {
     free(_re_count_clauses);
     free(_bu_output_files);
     free(file_names);
+    u8_vec_free(write_buffer);
     import_merger_end();
 }
 
