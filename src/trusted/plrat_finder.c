@@ -362,9 +362,14 @@ void plrat_finder_init(const char* main_path, const char* imports_path, unsigned
     char** file_paths = trusted_utils_malloc(sizeof(char*) * comm_size);
     import_check_hash = trusted_utils_malloc(sizeof(struct siphash*) * comm_size);
 
+    int column = local_rank % comm_size;
     for (size_t i = 0; i < comm_size; i++) {
         file_paths[i] = trusted_utils_malloc(768);
-        snprintf(file_paths[i], 768, "%s/%u/%lu/%lu.palrup_import", imports_path, dir_hierarchy, local_rank, i);
+        if (redist_strat == 3){
+            int src_rank = (i * comm_size) + column;
+            snprintf(file_paths[i], 768, "%s/%lu/%i/out.palrup_import", imports_path, src_rank / comm_size, src_rank);
+        } else
+            snprintf(file_paths[i], 768, "%s/%u/%lu/%lu.palrup_import", imports_path, dir_hierarchy, local_rank, i);
 
         import_check_hash[i] = siphash_cls_init(SECRET_KEY);
     }
@@ -394,7 +399,9 @@ void plrat_finder_run() {
     while (!found_T) {
         import_merger_next();
 
-        // if (current_ID == empty_ID) break;
+        // skip clauses for different lines
+        if (current_ID % n_solvers != local_rank && current_ID != (u64)-1)
+            continue;
 
         if (palrup_binary)
             parse(&found_T);

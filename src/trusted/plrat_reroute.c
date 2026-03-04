@@ -92,33 +92,47 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
     char msg[512];
     snprintf(msg, 512, "root_n:%f", root_n);
     if (local_rank == 0) plrat_utils_log(msg);
-    for (size_t i = 0; i < comm_size; i++) {
-        char folder_path[512];
+    if (redist_strat == 3) {
         char tmp_path[1024];
+        snprintf(tmp_path, 512, "%s/%lu/%lu/out.palrup_import~", out_path, solver_rank / comm_size, solver_rank);
+        FILE* out_file = fopen(tmp_path, "wb");
+        struct siphash* single_out_hash = siphash_cls_init(SECRET_KEY);
+        for (size_t i = 0; i < comm_size; i++) {
+            file_names[i] = trusted_utils_calloc(1024, sizeof(char));
+            memcpy(file_names[i], tmp_path, 1024);
+            _bu_output_files[i] = out_file;
+            out_hash[i] = single_out_hash;
+            comm_sig_compute[i] = comm_sig_init(SECRET_KEY_2);
+        }
+    } else {
+        for (size_t i = 0; i < comm_size; i++) {
+            char folder_path[512];
+            char tmp_path[1024];
 
-        u64 dest_rank = plrat_reroute_get_destination_rank(i);
-        snprintf(folder_path, 512, "%s/%lu/%lu", out_path, dest_rank / comm_size, dest_rank);
-        mkdir(folder_path, 0755);
-        snprintf(tmp_path, 1024, "%s/%lu.palrup_import~", folder_path, plrat_utils_rank_to_y(local_rank, comm_size));
-        file_names[i] = trusted_utils_calloc(1024, sizeof(char));
-        memcpy(file_names[i], tmp_path, 1024);
-        _bu_output_files[i] = fopen(tmp_path, "wb");
+            u64 dest_rank = plrat_reroute_get_destination_rank(i);
+            snprintf(folder_path, 512, "%s/%lu/%lu", out_path, dest_rank / comm_size, dest_rank);
+            mkdir(folder_path, 0755);
+            snprintf(tmp_path, 1024, "%s/%lu.palrup_import~", folder_path, plrat_utils_rank_to_y(local_rank, comm_size));
+            file_names[i] = trusted_utils_calloc(1024, sizeof(char));
+            memcpy(file_names[i], tmp_path, 1024);
+            _bu_output_files[i] = fopen(tmp_path, "wb");
 
-        if (!(_bu_output_files[i])) trusted_utils_exit_eof();
-        //plrat_reroute_write_int(0, _bu_output_files[i]);  // write placeholder 0 for count of clauses
+            if (!(_bu_output_files[i])) trusted_utils_exit_eof();
+            //plrat_reroute_write_int(0, _bu_output_files[i]);  // write placeholder 0 for count of clauses
 
-        out_hash[i] = siphash_cls_init(SECRET_KEY);
-        comm_sig_compute[i] = comm_sig_init(SECRET_KEY_2);
+            out_hash[i] = siphash_cls_init(SECRET_KEY);
+            comm_sig_compute[i] = comm_sig_init(SECRET_KEY_2);
+        }
     }
-    char** file_paths = trusted_utils_malloc(sizeof(char*) * comm_size);
 
     // signature for empty files. Avoids unnecessary error logs.
     struct comm_sig* dummy_sig = comm_sig_init(SECRET_KEY_2);
     u8* sig = comm_sig_digest(dummy_sig);
-    
+    char** file_paths = trusted_utils_malloc(sizeof(char*) * comm_size);
+    int offset = (local_rank / comm_size) * comm_size;  // row number * pals in row
     for (size_t i = 0; i < comm_size; i++) {
         file_paths[i] = trusted_utils_malloc(512);
-        snprintf(file_paths[i], 512, "%s/%u/%lu/%lu.palrup_proxy", out_path, dir_hierarchy, local_rank, i);
+        snprintf(file_paths[i], 512, "%s/%u/%lu/out.palrup_proxy", out_path, dir_hierarchy, offset + i);
         if (access(file_paths[i], F_OK) != 0) {
             // file doesn't exist
             // create placeholder file containing only 0
@@ -161,24 +175,29 @@ void plrat_reroute_end() {
             //trusted_utils_log(msg);
         }
         free(computed_incoming_sig);
+        comm_sig_free(comm_sig_compute[i]);
+    }
 
+    size_t effective_comm_size = comm_size;
+    if (redist_strat == 3) // heaps/files/sigs all point to the same objects
+        effective_comm_size = 1;
+    
+    for (size_t i = 0; i < effective_comm_size; i++) {
         u8* sig = siphash_cls_digest(out_hash[i]);
         trusted_utils_write_ul(0,_bu_output_files[i]);  // mark end of clauses
         trusted_utils_write_sig(sig, _bu_output_files[i]);
-
-        //fseek(_bu_output_files[i], 0, SEEK_SET);
-        //plrat_reroute_write_int(_re_count_clauses[i], _bu_output_files[i]);
-        //fsync(fileno(_bu_output_files[i]));
         fclose(_bu_output_files[i]);
         int new_str_len = strlen(file_names[i])-1;
         char new_filename[new_str_len];
         memcpy(new_filename, file_names[i], new_str_len);
         new_filename[new_str_len] = '\0';
         rename(file_names[i], new_filename);
-        free(file_names[i]);
         siphash_cls_free(out_hash[i]);
-        comm_sig_free(comm_sig_compute[i]);
     }
+
+    for (size_t i = 0; i < comm_size; i++)
+        free(file_names[i]);
+
     free(out_hash);
     free(comm_sig_compute);
     free(_re_count_clauses);
@@ -189,10 +208,16 @@ void plrat_reroute_end() {
 
 void plrat_reroute_run() {
     char msg[512];
+    u64 column = local_rank % comm_size;
     while (true) {
         import_merger_next();
+
         int destination_index = plrat_utils_rank_to_y(_re_current_ID % n_solvers, comm_size);
         if (MALLOB_UNLIKELY(_re_current_ID == empty_ID)) break;
+
+        // skip clauses for different columns
+        if ((_re_current_ID % n_solvers) % comm_size != column)
+            continue;
 
         siphash_cls_update(out_hash[destination_index], (u8*)&_re_current_ID, sizeof(u64));
         siphash_cls_update(out_hash[destination_index], (u8*)_re_current_literals_data, sizeof(int) * _re_current_literals_size);
