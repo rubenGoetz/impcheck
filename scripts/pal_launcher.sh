@@ -127,7 +127,7 @@ done
 ################
 echo "Launch Pals.." &>> "$log"
 for pal in ${pal_id_set[@]}; do
-    bash scripts/pal.sh $pal &>> "$log" &
+    bash scripts/pal_strat3.sh $pal &>> "$log" &
 done
 echo "Wait for Pals.." &>> "$log"
 wait
