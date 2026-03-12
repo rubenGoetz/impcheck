@@ -119,7 +119,7 @@ for pal_id in ${pal_id_set[@]}; do
     dir_hierarchy=$(($pal_id/$root_floor))
     dir_hierarchy=${dir_hierarchy%.*}
     mkdir -p "$proof_working/$dir_hierarchy/$pal_id"
-    mkdir -p "$log_dir/pals/$dir_hierarchy/$pal_id"
+    mkdir -p "$log_dir/pals/$dir_hierarchy/"
 done
 
 ################
@@ -155,7 +155,7 @@ if [[ $global_id == 0 ]]; then
     bash scripts/sbatch/validate.sh "$log_dir" &>> "$log"
 
     echo "clean up $proof_working" &>> "$log"
-    rm -r "$proof_working"
+    #rm -r "$proof_working"
 fi
 
 end=$(date +%s.%N)

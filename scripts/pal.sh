@@ -26,7 +26,7 @@ check_timeout() {
     curr_time=$(date +%s.%N)
     if (( $( echo "($curr_time - $glob_start) > $timeout" | bc ) )); then
         echo "TIMEOUT in pal $id/$comm_size with message: \"$1\""
-        echo "TIMEOUT" &>> "$log/std.out"
+        echo "TIMEOUT" &>> "$log"
         exit 1
     fi
 }
@@ -52,29 +52,29 @@ expected_proxy=$(for i in $(seq 0 $(($root_ceil-1))); do if [[ $(($offset+$i)) -
 # Avoid edgecases in pal_launcher
 if [[ $id -ge $comm_size ]]; then exit; fi
 
-log="$log_dir/pals/$dir_hierarchy/$id"
+log="$log_dir/pals/$dir_hierarchy/$id.out"
 
-echo "Initiated pal $id/$comm_size. Original solver count was $num_solvers" &>> "$log/std.out"
-echo "Calculated root=$root, roof_floor=$root_floor, root_ceil=$root_ceil, comm_size=$comm_size, expected_proxy=$expected_proxy" &>> "$log/std.out"
-echo "prepared log dir at $log" &>> "$log/std.out"
-echo "read env variables:" &>> "$log/std.out"
-echo "num_solvers: $num_solvers" &>> "$log/std.out"
-echo "proof_palrup: $proof_palrup" &>> "$log/std.out"
-echo "proof_working: $proof_working" &>> "$log/std.out"
-echo "formula_path: $formula_path" &>> "$log/std.out"
-echo "log_dir: $log_dir" &>> "$log/std.out"
-echo "timeout: $timeout" &>> "$log/std.out"
+echo "Initiated pal $id/$comm_size. Original solver count was $num_solvers" &>> "$log"
+echo "Calculated root=$root, roof_floor=$root_floor, root_ceil=$root_ceil, comm_size=$comm_size, expected_proxy=$expected_proxy" &>> "$log"
+echo "prepared log dir at $log" &>> "$log"
+echo "read env variables:" &>> "$log"
+echo "num_solvers: $num_solvers" &>> "$log"
+echo "proof_palrup: $proof_palrup" &>> "$log"
+echo "proof_working: $proof_working" &>> "$log"
+echo "formula_path: $formula_path" &>> "$log"
+echo "log_dir: $log_dir" &>> "$log"
+echo "timeout: $timeout" &>> "$log"
 
 #############
 ## run pal ##
 #############
-echo "Begin execution" &>> "$log/std.out"
+echo "Begin execution" &>> "$log"
 
 # There might be more pals than solvers to fill up the reroute matrix.
 # Only run first and last pass for original solvers.
 if (( $id < $num_solvers )); then
 
-    echo "wait until proof is finished.." &>> "$log/std.out"
+    echo "wait until proof is finished.." &>> "$log"
     start=$(date +%s.%N)
     until [[ $(find $proof_palrup/$dir_hierarchy/$id -name out.palrup) ]]; do
         check_timeout "wait until proof is finished.."
@@ -82,8 +82,8 @@ if (( $id < $num_solvers )); then
     done
     end=$(date +%s.%N)
     elapsed=$( echo "$end - $start" | bc )
-    echo "WC_WAIT_TIME=$elapsed" &>> "$log/first_pass"
-    echo "READ_PALRUP_SIZE=$(wc -c $proof_palrup/$dir_hierarchy/$id/out.palrup)" &>> "$log/first_pass"
+    echo "FP_WC_WAIT_TIME=$elapsed" &>> "$log"
+    echo "READ_PALRUP_SIZE=$(wc -c $proof_palrup/$dir_hierarchy/$id/out.palrup)" &>> "$log"
 
     # run first pass
     cmd="./build/plrat_first_pass \
@@ -91,21 +91,21 @@ if (( $id < $num_solvers )); then
     -proofs-path-out=$proof_working -num-solvers=$num_solvers \
     -solver-id=$id -read-buffer-KB=16384 -redistribution-strategy=2 \
     -palrup-binary=1"
-    echo "run $cmd" &>> "$log/std.out" &>> "$log/std.out"
+    echo "run $cmd" &>> "$log"
     start=$(date +%s.%N)
-    $cmd &>> "$log/first_pass"
+    $cmd &>> "$log"
     end=$(date +%s.%N)
     elapsed=$( echo "$end - $start" | bc )
-    echo "WC_TIME=$elapsed" &>> "$log/first_pass"
-    echo "Finished first pass" &>> "$log/std.out"
+    echo "FP_WC_TIME=$elapsed" &>> "$log"
+    echo "Finished first pass" &>> "$log"
 
 else
-    echo "Skip first pass" &>> "$log/std.out"
+    echo "Skip first pass" &>> "$log"
 fi
 
 
 # wait until conditions for reroute are met
-echo "wait until conditions for reroute are met.." &>> "$log/std.out"
+echo "wait until conditions for reroute are met.." &>> "$log"
 start=$(date +%s.%N)
 until [[ $(find $proof_working/$dir_hierarchy/$id -name *.palrup_proxy | wc -l) == $expected_proxy ]]; do
     check_timeout "wait until conditions for reroute are met.."
@@ -113,30 +113,30 @@ until [[ $(find $proof_working/$dir_hierarchy/$id -name *.palrup_proxy | wc -l) 
 done
 end=$(date +%s.%N)
 elapsed=$( echo "$end - $start" | bc )
-echo "WC_WAIT_TIME=$elapsed" &>> "$log/reroute"
-echo "READ_PROXY_SIZE=$(wc -c $proof_working/$dir_hierarchy/$id/*.palrup_proxy | grep -E "total")" &>> "$log/reroute"
+echo "RR_WC_WAIT_TIME=$elapsed" &>> "$log"
+echo "READ_PROXY_SIZE=$(wc -c $proof_working/$dir_hierarchy/$id/*.palrup_proxy | grep -E "total")" &>> "$log"
 
 # run reroute
 cmd="./build/plrat_reroute \
 -proofs-path=$proof_working -num-solvers=$num_solvers -solver-id=$id \
 -read-buffer-KB=16384 -redistribution-strategy=2"
-echo "run $cmd" &>> "$log/std.out"
+echo "run $cmd" &>> "$log"
 start=$(date +%s.%N)
-$cmd &>> "$log/reroute"
+$cmd &>> "$log"
 end=$(date +%s.%N)
 elapsed=$( echo "$end - $start" | bc )
-echo "WC_TIME=$elapsed" &>> "$log/reroute"
-echo "Finished reroute" &>> "$log/std.out"
+echo "RR_WC_TIME=$elapsed" &>> "$log"
+echo "Finished reroute" &>> "$log"
 
 # clean up .palrup_proxy
-echo "clean up .palrup_proxy files in $proof_working/$dir_hierarchy/$id" &>> "$log/std.out"
+echo "clean up .palrup_proxy files in $proof_working/$dir_hierarchy/$id" &>> "$log"
 rm $proof_working/$dir_hierarchy/$id/*.palrup_proxy
 
 
 if (( $id < $num_solvers )); then
 
     # wait until conditions for last pass are met
-    echo "wait until conditions for last pass are met.." &>> "$log/std.out"
+    echo "wait until conditions for last pass are met.." &>> "$log"
     start=$(date +%s.%N)
     until [[ $(find $proof_working/$dir_hierarchy/$id -name *.palrup_import | wc -l) == $root_ceil ]]; do
         check_timeout "wait until conditions for last pass are met.."
@@ -144,8 +144,8 @@ if (( $id < $num_solvers )); then
     done
     end=$(date +%s.%N)
     elapsed=$( echo "$end - $start" | bc )
-    echo "WC_WAIT_TIME=$elapsed" &>> "$log/last_pass"
-    echo "READ_IMPORT_SIZE=$(wc -c $proof_working/$dir_hierarchy/$id/*.palrup_import | grep -E "total")" &>> "$log/last_pass"
+    echo "LP_WC_WAIT_TIME=$elapsed" &>> "$log"
+    echo "READ_IMPORT_SIZE=$(wc -c $proof_working/$dir_hierarchy/$id/*.palrup_import | grep -E "total")" &>> "$log"
 
     # run last pass
     cmd="./build/plrat_last_pass \
@@ -153,24 +153,24 @@ if (( $id < $num_solvers )); then
     -imports-path=$proof_working -num-solvers=$num_solvers \
     -solver-id=$id -read-buffer-KB=16384 -redistribution-strategy=2 \
     -palrup-binary=1"
-    echo "run $cmd" &>> "$log/std.out" &>> "$log/std.out"
+    echo "run $cmd" &>> "$log"
     start=$(date +%s.%N)
-    $cmd &>> "$log/last_pass"
+    $cmd &>> "$log"
     end=$(date +%s.%N)
     elapsed=$( echo "$end - $start" | bc )
-    echo "WC_TIME=$elapsed" &>> "$log/last_pass"
-    echo "Finished last pass" &>> "$log/std.out"
+    echo "LP_WC_TIME=$elapsed" &>> "$log"
+    echo "Finished last pass" &>> "$log"
 
     # clean up proof
-    echo "clean up hash of local proof fragment in $proof_palrup/$dir_hierarchy/$id" &>> "$log/std.out"
+    echo "clean up hash of local proof fragment in $proof_palrup/$dir_hierarchy/$id" &>> "$log"
     rm $proof_palrup/$dir_hierarchy/$id/out.palrup.hash
 
 else
-    echo "Skip last pass" &>> "$log/std.out"
+    echo "Skip last pass" &>> "$log"
 fi
 
 # clean up .palrup_import
-echo "clean up .palrup_import files in $proof_working/$dir_hierarchy/$id" &>> "$log/std.out"
+echo "clean up .palrup_import files in $proof_working/$dir_hierarchy/$id" &>> "$log"
 rm $proof_working/$dir_hierarchy/$id/*.palrup_import
 
 # leave marker, that execution is finished

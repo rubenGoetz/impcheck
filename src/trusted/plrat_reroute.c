@@ -172,7 +172,10 @@ void plrat_reroute_init(const char* main_path, unsigned long solver_rank, unsign
     int offset = (local_rank / comm_size) * comm_size;  // row number * pals in row
     for (size_t i = 0; i < comm_size; i++) {
         file_paths[i] = trusted_utils_malloc(512);
-        snprintf(file_paths[i], 512, "%s/%u/%lu/out.palrup_proxy", out_path, dir_hierarchy, offset + i);
+        if (redist_strat == 3)
+            snprintf(file_paths[i], 512, "%s/%u/%lu/out.palrup_proxy", out_path, dir_hierarchy, offset + i);
+        else
+            snprintf(file_paths[i], 512, "%s/%u/%lu/%lu.palrup_proxy", out_path, dir_hierarchy, local_rank, i);
         if (access(file_paths[i], F_OK) != 0) {
             // file doesn't exist
             // create placeholder file containing only 0

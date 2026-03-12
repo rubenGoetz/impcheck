@@ -436,7 +436,7 @@ int pc_run() {
         snprintf(unsat_folder, 525, "%s/.unsat_found", redestribute_path_out);
         if (mkdir(unsat_folder, 0777) == 0) {
             char unsat_folder_sub[545];
-            snprintf(unsat_folder_sub, 1024, "%s/%lu", unsat_folder, solver_rank);
+            snprintf(unsat_folder_sub, 512, "%s/%lu", unsat_folder, solver_rank);
             mkdir(unsat_folder_sub, 0777);
         }
     }
