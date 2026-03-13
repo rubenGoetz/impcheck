@@ -84,7 +84,7 @@ if (( $id < $num_solvers )); then
     cmd="./build/plrat_first_pass \
     -formula-path=$formula_path -proofs-path-in=$proof_palrup \
     -proofs-path-out=$proof_working -num-solvers=$num_solvers \
-    -solver-id=$id -read-buffer-KB=16384 -redistribution-strategy=3 \
+    -solver-id=$id -read-buffer-KB=524288 -redistribution-strategy=3 \
     -palrup-binary=1"
     echo "run $cmd" &>> "$log" &>> "$log"
     start=$(date +%s.%N)
@@ -172,8 +172,32 @@ else
     echo "Skip last pass" &>> "$log"
 fi
 
+echo "after cleanup" &>> "$log"
+# validate checking procedure distributed via a binary tree by checking childrens .check_ok
+start=$(date +%s.%N)
+child_id=$((($id*2)+1))
+child_paths=()
+if (( $child_id < $num_solvers )); then child_paths+=("$proof_working/$(($child_id/$root_ceil))/$child_id/"); fi
+if (( $(($child_id+1)) < $num_solvers )); then child_paths+=("$proof_working/$((($child_id+1)/$root_ceil))/$(($child_id+1))/"); fi
+# wait for children
+echo "wait until children are finished.." &>> "$log"
+until [[ $(find ${child_paths[@]} -name .done | wc -l) -eq ${#child_paths[@]} ]]; do
+    check_timeout "wait until children are finished.."
+    sleep 0.1;
+done
+end=$(date +%s.%N)
+elapsed=$( echo "$end - $start" | bc )
+echo "VAL_WC_WAIT_TIME=$elapsed" &>> "$log"
+
+# check for own and children's vlaidity
+if [[ -d "$proof_working/$dir_hierarchy/$id/.check_ok" && $(find ${child_paths[@]} -name .valid | wc -l) -eq ${#child_paths[@]} ]]; then
+    mkdir "$proof_working/$dir_hierarchy/$id/.valid"
+fi
+
 # leave marker, that execution is finished
 mkdir $proof_working/$dir_hierarchy/$id/.done
+glob_end=$(date +%s.%N)
+elapsed=$( echo "$glob_end - $glob_start" | bc )
+echo "GLOB_WC_TIME=$elapsed" &>> "$log"
 
 echo "Finished execution of pal $id/$comm_size"
-

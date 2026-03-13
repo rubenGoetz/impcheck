@@ -143,26 +143,87 @@ echo "All Pals returned." &>> "$log"
 #     rm -r "$PROOF_PALRUP"
 # fi
 
-# validate check and clean up working dir after all pals are finished
+# clean up working dir after everything finished
 if [[ $global_id == 0 ]]; then
-    echo "wait for all pals to be finished" &>> "$log"
-    until [[ $(find $proof_working -name .done | wc -l) == $comm_size ]]; do
+    echo "wait for all global Pals to be finished" &>> "$log"
+    # pals finish in binary tree order, i.e. pal 0 always finishes last
+    until [[ -d "$proof_working/0/0/.done" ]]; do
         check_timeout
         sleep 0.2
     done
 
-    echo "run validation validate" &>> "$log"
-    bash scripts/sbatch/validate.sh "$log_dir" &>> "$log"
+    # check for global validity
+    echo "check for validity" &>> "$log"
+    if [[ -d "$proof_working/.unsat_found" && -d "$proof_working/0/0/.valid" ]]; then
+        echo "PROOF VALIDATED" > "$log_dir/success.palrup"
+        echo "PROOF_VALIDATED" &>> "$log"
+    fi
 
-    echo "clean up $proof_working" &>> "$log"
+    mkdir -p $proof_working/.cleanup
+    #start=$(date +%s.%N)
+    #echo "clean up $proof_working" &>> "$log"
     #rm -r "$proof_working"
+
+    #end=$(date +%s.%N)
+    #elapsed=$(echo "$end - $start" | bc -l)
+    #echo "CLEANUP_WC_TIME=$elapsed" &>> "$log"
+fi
+
+glob_end=$(date +%s.%N)
+elapsed=$(echo "$glob_end - $glob_start" | bc -l)
+echo "GLOB_WC_TIME=$elapsed" &>> "$log"
+
+echo "Release lock" &>> "$log"
+if [[ $use_local_disks == "true" ]]; then
+    rmdir /tmp/.pal_launcher.$local_id.lock 2>/dev/null
+else
+    rmdir $proof_working/.pal_launcher.$local_id.lock 2>/dev/null
+fi
+
+echo "FINISHED" &>> "$log"
+
+
+# Wait for cleanup
+echo "wait for cleanup" &>> "$log"
+start=$(date +%s.%N)
+until [[ -d "$proof_working/.cleanup" ]]; do
+    check_timeout
+    sleep 0.1
+done
+end=$(date +%s.%N)
+elapsed=$( echo "$end - $start" | bc )
+echo "CLEANUP_WAIT_WC_TIME=$elapsed" &>> "$log"
+
+# cleanup dirs of all pals
+echo "cleanup Pals' directories.." &>> "$log"
+start=$(date +%s.%N)
+for pal in ${pal_id_set[@]}; do
+    dir_hierarchy=$(($pal/$root_floor))
+    rm -r "$proof_working/$dir_hierarchy/$pal" 2>/dev/null &
+    rm -r "$proof_palrup/$dir_hierarchy/$pal" 2>/dev/null &
+done
+wait
+echo "all Pals' directories cleaned up" &>> "$log"
+
+if [[ $global_id == 0 ]]; then
+    echo "clean up hierarchies"
+    # wait for all pal dirs to be cleaned up
+    empty=""
+    until [[ $empty ]]; do
+        empty="true"
+        for i in $(seq 0 $(($root_floor-1))); do
+            if [[ $(ls $proof_working/$i) ]]; then empty=""; fi
+        done
+    done
+
+    # clean up dir hierarchy and .unsat_found
+    rm -r $proof_working
+
+    # clean up proof hierarchy
+    rm -r $proof_palrup
 fi
 
 end=$(date +%s.%N)
-elapsed=$(echo "$end - $start" | bc -l)
-echo "WC_TIME=$elapsed" &>> "$log"
+elapsed=$( echo "$end - $start" | bc )
+echo "CLEANUP_WC_TIME=$elapsed" &>> "$log"
 
-echo "Release lock" &>> "$log"
-rmdir /tmp/.pal_launcher.$local_id.lock 2>/dev/null
-
-echo "FINISHED" &>> "$log"
