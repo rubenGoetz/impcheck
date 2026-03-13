@@ -133,17 +133,8 @@ echo "Wait for Pals.." &>> "$log"
 wait
 echo "All Pals returned." &>> "$log"
 
-# clean up proof after local pals are finished
-# if [[ $local_id == 0 ]]; then
-#     echo "wait for local pals to be finished" &>> "$log"
-#     until [[ $(find $proof_palrup -name out.palrup | wc -l) == 0 ]]; do
-#         sleep 0.2
-#     done
-#     echo "clean up $proof_palrup" &>> "$log"
-#     rm -r "$PROOF_PALRUP"
-# fi
 
-# clean up working dir after everything finished
+# clean up after everything finished
 if [[ $global_id == 0 ]]; then
     echo "wait for all global Pals to be finished" &>> "$log"
     # pals finish in binary tree order, i.e. pal 0 always finishes last
@@ -160,13 +151,6 @@ if [[ $global_id == 0 ]]; then
     fi
 
     mkdir -p $proof_working/.cleanup
-    #start=$(date +%s.%N)
-    #echo "clean up $proof_working" &>> "$log"
-    #rm -r "$proof_working"
-
-    #end=$(date +%s.%N)
-    #elapsed=$(echo "$end - $start" | bc -l)
-    #echo "CLEANUP_WC_TIME=$elapsed" &>> "$log"
 fi
 
 glob_end=$(date +%s.%N)
@@ -226,4 +210,3 @@ fi
 end=$(date +%s.%N)
 elapsed=$( echo "$end - $start" | bc )
 echo "CLEANUP_WC_TIME=$elapsed" &>> "$log"
-

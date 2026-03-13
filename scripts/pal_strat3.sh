@@ -71,7 +71,7 @@ if (( $id < $num_solvers )); then
 
     echo "wait until proof is finished.." &>> "$log"
     start=$(date +%s.%N)
-    until [[ $(find $proof_palrup/$dir_hierarchy/$id -name out.palrup) ]]; do
+    until [[ $(find $proof_palrup/$dir_hierarchy/$id -name out.palrup 2>/dev/null) ]]; do
         check_timeout "wait until proof is finished.."
         sleep 0.1;
     done
@@ -107,7 +107,7 @@ echo "expect $expected_proxy proxy files in $proof_working/$dir_hierarchy/" &>> 
 # wait until conditions for reroute are met
 echo "wait until conditions for reroute are met.." &>> "$log"
 start=$(date +%s.%N)
-until [[ $(find $proof_working/$dir_hierarchy/ -name out.palrup_proxy | wc -l) -ge $expected_proxy ]]; do
+until [[ $(find $proof_working/$dir_hierarchy/ -name out.palrup_proxy 2>/dev/null | wc -l) -ge $expected_proxy ]]; do
     check_timeout "wait until conditions for reroute are met.."
     sleep 0.1;
 done
@@ -118,7 +118,8 @@ echo "RR_WC_WAIT_TIME=$elapsed" &>> "$log"
 # run reroute
 if [[ $expected_proxy == "0" ]]; then
     # skip reroute if nothing is done regardless
-    cp /home/ruben/mallob/out.palrup_import.dummy $proof_working/$dir_hierarchy/$id/out.palrup_import
+    # TODO: put in path to dummy import
+    cp "path/to/dummy" $proof_working/$dir_hierarchy/$id/out.palrup_import
 else
     cmd="./build/plrat_reroute \
     -proofs-path=$proof_working -num-solvers=$num_solvers -solver-id=$id \
@@ -142,7 +143,7 @@ if (( $id < $num_solvers )); then
     # wait until conditions for last pass are met
     echo "wait until conditions for last pass are met.." &>> "$log"
     start=$(date +%s.%N)
-    until [[ $(find ${dirs[@]} -name out.palrup_import | wc -l) -ge $root_ceil ]]; do
+    until [[ $(find ${dirs[@]} -name out.palrup_import 2>/dev/null | wc -l) -ge $root_ceil ]]; do
         check_timeout "wait until conditions for last pass are met.."
         sleep 0.1;
     done
@@ -181,7 +182,7 @@ if (( $child_id < $num_solvers )); then child_paths+=("$proof_working/$(($child_
 if (( $(($child_id+1)) < $num_solvers )); then child_paths+=("$proof_working/$((($child_id+1)/$root_ceil))/$(($child_id+1))/"); fi
 # wait for children
 echo "wait until children are finished.." &>> "$log"
-until [[ $(find ${child_paths[@]} -name .done | wc -l) -eq ${#child_paths[@]} ]]; do
+until [[ $(find ${child_paths[@]} -name .done 2>/dev/null | wc -l) -eq ${#child_paths[@]} ]]; do
     check_timeout "wait until children are finished.."
     sleep 0.1;
 done
@@ -190,7 +191,7 @@ elapsed=$( echo "$end - $start" | bc )
 echo "VAL_WC_WAIT_TIME=$elapsed" &>> "$log"
 
 # check for own and children's vlaidity
-if [[ -d "$proof_working/$dir_hierarchy/$id/.check_ok" && $(find ${child_paths[@]} -name .valid | wc -l) -eq ${#child_paths[@]} ]]; then
+if [[ -d "$proof_working/$dir_hierarchy/$id/.check_ok" && $(find ${child_paths[@]} -name .valid 2>/dev/null | wc -l) -eq ${#child_paths[@]} ]]; then
     mkdir "$proof_working/$dir_hierarchy/$id/.valid"
 fi
 
