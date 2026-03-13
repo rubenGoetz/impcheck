@@ -118,8 +118,7 @@ echo "RR_WC_WAIT_TIME=$elapsed" &>> "$log"
 # run reroute
 if [[ $expected_proxy == "0" ]]; then
     # skip reroute if nothing is done regardless
-    # TODO: put in path to dummy import
-    cp "path/to/dummy" $proof_working/$dir_hierarchy/$id/out.palrup_import
+    cp out.palrup_import.dummy $proof_working/$dir_hierarchy/$id/out.palrup_import
 else
     cmd="./build/plrat_reroute \
     -proofs-path=$proof_working -num-solvers=$num_solvers -solver-id=$id \
